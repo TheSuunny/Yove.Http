@@ -66,7 +66,7 @@ string Token = Response["Token"];
 ### Upload file [Multipart]
 
 ```csharp
-MultipartContent Content = new MultipartContent()
+MultipartContent Content = new MultipartContent
 {
     { "file", new FileContent("Path") }, //If you do not specify the file name, the client will transfer the file name from the path
     { "file", new FileContent("Path"), "Filename" },
