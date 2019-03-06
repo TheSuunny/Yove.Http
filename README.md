@@ -1,6 +1,8 @@
 # Yove.Http - Http Client / Http Framework
 
 [![NuGet version](https://badge.fury.io/nu/Yove.Http.svg)](https://badge.fury.io/nu/Yove.Http)
+[![Downloads](https://img.shields.io/nuget/dt/Yove.Http.svg)](https://www.nuget.org/packages/Yove.Http)
+[![Target](https://img.shields.io/badge/.NET%20Standard-2.0-green.svg)](https://docs.microsoft.com/ru-ru/dotnet/standard/net-standard)
 
 Nuget: https://www.nuget.org/packages/Yove.Http/1.0.0
 
@@ -22,9 +24,11 @@ Client.UserAgent = HttpUtils.GenerateUserAgent(); //Full random (Linux, Windows,
 Client.UserAgent = HttpUtils.GenerateUserAgent(HttpSystem.Linux); //Partial random (Linux) / (Chrome, Firefox, Opera, Edge, Safari)
 Client.UserAgent = HttpUtils.GenerateUserAgent(HttpBrowser.Firefox); //Partial random (Linux, Windows, Mac, ChromeOS) / (Firefox)
 Client.UserAgent = HttpUtils.GenerateUserAgent(HttpSystem.Windows, HttpBrowser.Chrome); //No random (Windows) / (Chrome)
+```
 
 or
 
+```csharp
 HttpClient Client = new HttpClient
 {
     Authorization = $"Bot {Token}", //Add Authorization header
@@ -42,18 +46,17 @@ HttpClient Client = new HttpClient
 
 | Link | README |
 | ------ | ------ |
-| ```await Client.Get("http://example.com/");``` | Standard GET request |
+| ```await Client.Get("http://example.com/");``` | Simple GET request |
 | ```await Client.GetBytes("http://example.com/");``` | Makes a GET request and returns a response byte[] |
 | ```await Client.GetStream("http://example.com/");``` | Makes a GET request and returns a response MemoryStream |
 | ```await Client.GetString("http://example.com/");``` | Makes a GET request and returns a response ToString |
-| ```await Client.Post("http://example.com/", "id=0&message=test");``` | Standard POST request, has 5 reload |
+| ```await Client.Post("http://example.com/", "id=0&message=test");``` | Simple POST request, supports up to 5 reload |
+| ```await Client.Raw(HttpMethod.DELETE, "http://example.com/");``` | Raw method, can accept any parameters included in HttpContent |
 
 ### Add header / Read header
 
 ```csharp
 Client.Headers.Add("Token", Token);
-
-or
 
 Client["Token"] = Token;
 
@@ -83,9 +86,9 @@ string Body = Response.Body; //Receives the response body from the server
 
 string Result = Response.Parser("<h1>", "</h1>"); //Parsing HTML data
 
-MemoryStream Stream = Response.ToMemoryStream(); //Will return the answer to you in MemoryStream
+MemoryStream Stream = Response.ToMemoryStream(); //Return the response in MemoryStream
 
-byte[] Bytes = Response.ToBytes(); //Will return the answer to you in byte[]
+byte[] Bytes = Response.ToBytes(); //Return the response in byte[]
 
 string SavePath = Response.ToFile("Path to save", "Filename"); //If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
 ```
