@@ -4,14 +4,14 @@
 [![Downloads](https://img.shields.io/nuget/dt/Yove.Http.svg)](https://www.nuget.org/packages/Yove.Http)
 [![Target](https://img.shields.io/badge/.NET%20Standard-2.0-green.svg)](https://docs.microsoft.com/ru-ru/dotnet/standard/net-standard)
 
-Nuget: https://www.nuget.org/packages/Yove.Http/1.0.0
+Nuget: https://www.nuget.org/packages/Yove.Http/1.0.1
 
 ```
-Install-Package Yove.Http -Version 1.0.0
+Install-Package Yove.Http -Version 1.0.1
 ```
 
 ```
-dotnet add package Yove.Http --version 1.0.0
+dotnet add package Yove.Http --version 1.0.1
 ```
 ___
 
@@ -70,7 +70,8 @@ MultipartContent Content = new MultipartContent
 {
     { "file", new FileContent("Path") }, //If you do not specify the file name, the client will transfer the file name from the path
     { "file", new FileContent("Path"), "Filename" },
-    { "content", new StringContent("Message") }
+    { "content", new StringContent("Message") }.
+    { "document", new FileContent(Stream), "Test.txt" }
 };
 
 HttpResponse Response = await Client.Post("http://example.com/", Content);

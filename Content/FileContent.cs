@@ -16,5 +16,14 @@ namespace Yove.Http
             this.BufferSize = BufferSize;
             this.Path = Path;
         }
+
+        public FileContent(Stream Stream, int BufferSize = 32768)
+        {
+            if (Stream == null)
+                throw new ArgumentNullException("Stream is null");
+
+            this.Content = Stream;
+            this.BufferSize = BufferSize;
+        }
     }
 }
