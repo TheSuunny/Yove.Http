@@ -310,10 +310,10 @@ namespace Yove.Http
             if (!string.IsNullOrEmpty(Referer))
                 Headers["Referer"] = Referer;
 
-            if (string.IsNullOrEmpty(UserAgent))
+            if (!string.IsNullOrEmpty(UserAgent))
                 Headers["User-Agent"] = UserAgent;
 
-            if (string.IsNullOrEmpty(Authorization))
+            if (!string.IsNullOrEmpty(Authorization))
                 Headers["Authorization"] = Authorization;
 
             if (CharacterSet != null)
