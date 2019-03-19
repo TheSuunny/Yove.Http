@@ -4,14 +4,14 @@
 [![Downloads](https://img.shields.io/nuget/dt/Yove.Http.svg)](https://www.nuget.org/packages/Yove.Http)
 [![Target](https://img.shields.io/badge/.NET%20Standard-2.0-green.svg)](https://docs.microsoft.com/ru-ru/dotnet/standard/net-standard)
 
-Nuget: https://www.nuget.org/packages/Yove.Http/1.0.1
+Nuget: https://www.nuget.org/packages/Yove.Http/
 
 ```
-Install-Package Yove.Http -Version 1.0.1
+Install-Package Yove.Http
 ```
 
 ```
-dotnet add package Yove.Http --version 1.0.1
+dotnet add package Yove.Http
 ```
 ___
 
