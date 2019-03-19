@@ -18,6 +18,9 @@ namespace Yove.Http
         public string Username { get; set; }
         public string Password { get; set; }
         public string Language { get; set; } = "en;q=0.9";
+        public string Referer { get; set; }
+        public string UserAgent { get; set; }
+        public string Authorization { get; set; }
 
         public Encoding CharacterSet { get; set; }
 
@@ -52,42 +55,6 @@ namespace Yove.Http
             {
                 if (!string.IsNullOrEmpty(value))
                     Headers[Key] = value;
-            }
-        }
-
-        public string UserAgent
-        {
-            get
-            {
-                return this["User-Agent"];
-            }
-            set
-            {
-                this["User-Agent"] = value;
-            }
-        }
-
-        public string Authorization
-        {
-            get
-            {
-                return this["Authorization"];
-            }
-            set
-            {
-                this["Authorization"] = value;
-            }
-        }
-
-        public string Referer
-        {
-            get
-            {
-                return this["Referer"];
-            }
-            set
-            {
-                this["Referer"] = value;
             }
         }
 
@@ -187,7 +154,9 @@ namespace Yove.Http
             this.Method = Method;
             this.Content = Content;
 
-            if (EnableCookies)
+            Headers.Clear();
+
+            if (EnableCookies && Cookies == null)
                 Cookies = new NameValueCollection();
 
             try
@@ -338,6 +307,15 @@ namespace Yove.Http
 
             Headers["Accept-Language"] = Language;
 
+            if (!string.IsNullOrEmpty(Referer))
+                Headers["Referer"] = Referer;
+
+            if (string.IsNullOrEmpty(UserAgent))
+                Headers["User-Agent"] = UserAgent;
+
+            if (string.IsNullOrEmpty(Authorization))
+                Headers["Authorization"] = Authorization;
+
             if (CharacterSet != null)
             {
                 if (CharacterSet != Encoding.UTF8)
@@ -352,6 +330,16 @@ namespace Yove.Http
                     Headers["Content-Type"] = ContentType;
 
                 Headers["Content-Length"] = ContentLength.ToString();
+            }
+
+            if (Cookies != null && Cookies.Count > 0)
+            {
+                string CookieBuilder = string.Empty;
+
+                foreach (var Cookie in Cookies)
+                    CookieBuilder += $"{Cookie}={Cookies[(string)Cookie]}; ";
+
+                Headers["Cookie"] = CookieBuilder.TrimEnd();
             }
 
             StringBuilder Builder = new StringBuilder();

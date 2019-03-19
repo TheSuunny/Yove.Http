@@ -111,7 +111,7 @@ namespace Yove.Http
             Method = Client.Method;
             Address = Client.Address;
 
-            if (Request.Cookies != null && Request.EnableCookies)
+            if (Request.EnableCookies && Request.Cookies != null)
                 Cookies = Request.Cookies;
 
             Content = new Receiver(Request.Connection.ReceiveBufferSize, Request.CommonStream);
