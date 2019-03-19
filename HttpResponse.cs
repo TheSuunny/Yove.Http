@@ -30,22 +30,26 @@ namespace Yove.Http
 
         public HttpStatusCode StatusCode { get; private set; }
         public HttpMethod Method { get; private set; }
-        public Uri Address { get; private set; }
         public Encoding CharacterSet { get; private set; }
+        public Uri Address { get; private set; }
+
+        private string SourceBody { get; set; }
 
         public string Body
         {
             get
             {
-                if (NoContent)
-                    return null;
+                if (NoContent || SourceBody != null)
+                    return SourceBody;
 
                 MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : ContentLength);
 
                 foreach (var Bytes in GetResponseBody())
                     Stream.Write(Bytes.Value, 0, Bytes.Length);
 
-                return CharacterSet.GetString(Stream.GetBuffer(), 0, (int)Stream.Length);
+                SourceBody = CharacterSet.GetString(Stream.GetBuffer(), 0, (int)Stream.Length);
+
+                return SourceBody;
             }
         }
 
