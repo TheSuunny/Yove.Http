@@ -10,7 +10,7 @@ using System.Collections.Specialized;
 
 namespace Yove.Http
 {
-    public class HttpClient
+    public class HttpClient : ICloneable
     {
         public NameValueCollection Headers = new NameValueCollection();
         public NameValueCollection Cookies { get; set; }
@@ -363,6 +363,11 @@ namespace Yove.Http
         private static bool AcceptAllCertifications(object sender, X509Certificate certification, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             return true;
+        }
+
+        public object Clone()
+        {
+            return this.MemberwiseClone();
         }
     }
 }
