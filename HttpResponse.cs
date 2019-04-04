@@ -169,6 +169,9 @@ namespace Yove.Http
                     {
                         string Cookie = Value.TrimEnd(';').Split(';')[0];
 
+                        if (!Cookie.Contains("="))
+                            continue;
+
                         string CookieName = Cookie.Split('=')[0]?.Trim();
                         string CookieValue = Cookie.Split('=')[1]?.Trim();
 
