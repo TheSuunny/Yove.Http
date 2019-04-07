@@ -7,11 +7,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
 using System.Collections.Specialized;
+using Yove.Http.Proxy;
 
 namespace Yove.Http
 {
     public class HttpClient : ICloneable
     {
+        public ProxyClient Proxy { get; set; }
+
         public NameValueCollection Headers = new NameValueCollection();
         public NameValueCollection Cookies { get; set; }
 
@@ -78,6 +81,7 @@ namespace Yove.Http
             if (Connection != null)
             {
                 Connection.Dispose();
+
                 NetworkStream.Dispose();
                 CommonStream.Dispose();
             }
@@ -85,7 +89,7 @@ namespace Yove.Http
 
         public async Task<HttpResponse> Post(string URL)
         {
-            return await Raw(HttpMethod.POST, URL);
+            return await Raw(HttpMethod.POST, URL).ConfigureAwait(false);
         }
 
         public async Task<HttpResponse> Post(string URL, string Content, string ContentType = "application/json")
@@ -93,7 +97,7 @@ namespace Yove.Http
             return await Raw(HttpMethod.POST, URL, new StringContent(Content)
             {
                 ContentType = ContentType
-            });
+            }).ConfigureAwait(false);
         }
 
         public async Task<HttpResponse> Post(string URL, byte[] Content, string ContentType = "application/octet-stream")
@@ -101,7 +105,7 @@ namespace Yove.Http
             return await Raw(HttpMethod.POST, URL, new ByteContent(Content)
             {
                 ContentType = ContentType
-            });
+            }).ConfigureAwait(false);
         }
 
         public async Task<HttpResponse> Post(string URL, Stream Content, string ContentType = "application/octet-stream")
@@ -109,38 +113,38 @@ namespace Yove.Http
             return await Raw(HttpMethod.POST, URL, new StreamContent(Content)
             {
                 ContentType = ContentType
-            });
+            }).ConfigureAwait(false);
         }
 
         public async Task<HttpResponse> Post(string URL, HttpContent Content)
         {
-            return await Raw(HttpMethod.POST, URL, Content);
+            return await Raw(HttpMethod.POST, URL, Content).ConfigureAwait(false);
         }
 
         public async Task<HttpResponse> Get(string URL)
         {
-            return await Raw(HttpMethod.GET, URL);
+            return await Raw(HttpMethod.GET, URL).ConfigureAwait(false);
         }
 
         public async Task<string> GetString(string URL)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, URL);
+            HttpResponse Response = await Raw(HttpMethod.GET, URL).ConfigureAwait(false);
 
             return Response.Body;
         }
 
         public async Task<byte[]> GetBytes(string URL)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, URL);
+            HttpResponse Response = await Raw(HttpMethod.GET, URL).ConfigureAwait(false);
 
-            return Response.ToBytes();
+            return await Response.ToBytes().ConfigureAwait(false);
         }
 
         public async Task<MemoryStream> GetStream(string URL)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, URL);
+            HttpResponse Response = await Raw(HttpMethod.GET, URL).ConfigureAwait(false);
 
-            return Response.ToMemoryStream();
+            return await Response.ToMemoryStream().ConfigureAwait(false);
         }
 
         public async Task<HttpResponse> Raw(HttpMethod Method, string URL, HttpContent Content = null)
@@ -161,12 +165,12 @@ namespace Yove.Http
 
             try
             {
-                Connection = CreateConnection(Address.Host, Address.Port);
+                Connection = await CreateConnection(Address.Host, Address.Port).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 if (CanReconnect)
-                    return await ReconnectFail();
+                    return await ReconnectFail().ConfigureAwait(false);
 
                 throw ex;
             }
@@ -178,7 +182,7 @@ namespace Yove.Http
                 try
                 {
                     SslStream SSL = new SslStream(NetworkStream, false, AcceptAllCertificationsCallback);
-                    await SSL.AuthenticateAsClientAsync(Address.Host);
+                    await SSL.AuthenticateAsClientAsync(Address.Host).ConfigureAwait(false);
 
                     CommonStream = SSL;
                 }
@@ -206,16 +210,16 @@ namespace Yove.Http
                 byte[] StartingLineBytes = Encoding.ASCII.GetBytes($"{Method} {Address.PathAndQuery} HTTP/1.1\r\n");
                 byte[] HeadersBytes = Encoding.ASCII.GetBytes(GenerateHeaders(Method, ContentLength, ContentType));
 
-                await CommonStream.WriteAsync(StartingLineBytes, 0, StartingLineBytes.Length);
-                await CommonStream.WriteAsync(HeadersBytes, 0, HeadersBytes.Length);
+                await CommonStream.WriteAsync(StartingLineBytes, 0, StartingLineBytes.Length).ConfigureAwait(false);
+                await CommonStream.WriteAsync(HeadersBytes, 0, HeadersBytes.Length).ConfigureAwait(false);
 
                 if (Content != null && ContentLength != 0)
-                    Content.Write(CommonStream);
+                    await Content.WriteAsync(CommonStream).ConfigureAwait(false);
             }
             catch
             {
                 if (CanReconnect)
-                    return await ReconnectFail();
+                    return await ReconnectFail().ConfigureAwait(false);
 
                 throw new Exception($"Failed send data to - {Address.AbsoluteUri}");
             }
@@ -227,7 +231,7 @@ namespace Yove.Http
             catch
             {
                 if (CanReconnect)
-                    return await ReconnectFail();
+                    return await ReconnectFail().ConfigureAwait(false);
 
                 throw new Exception($"Failed receive data from - {Address.AbsoluteUri}");
             }
@@ -244,43 +248,51 @@ namespace Yove.Http
             }
 
             if (EnableAutoRedirect && Response.Location != null)
-                return await Raw(Method, Response.Location, Content);
+                return await Raw(Method, Response.Location, Content).ConfigureAwait(false);
 
             return Response;
         }
 
-        private TcpClient CreateConnection(string Host, int Port)
+        private async Task<TcpClient> CreateConnection(string Host, int Port)
         {
-            TcpClient TcpClient = new TcpClient();
-            Exception ConnectionEx = null;
-
-            ManualResetEventSlim ConnectionEvent = new ManualResetEventSlim();
-
-            TcpClient.BeginConnect(Host, Port, new AsyncCallback((ar) =>
+            if (Proxy == null)
             {
-                try
+                TcpClient TcpClient = new TcpClient();
+
+                Exception ConnectionEx = null;
+
+                ManualResetEventSlim ConnectionEvent = new ManualResetEventSlim();
+
+                TcpClient.BeginConnect(Host, Port, new AsyncCallback((ar) =>
                 {
-                    TcpClient.EndConnect(ar);
-                }
-                catch (Exception ex)
+                    try
+                    {
+                        TcpClient.EndConnect(ar);
+                    }
+                    catch (Exception ex)
+                    {
+                        ConnectionEx = ex;
+                    }
+
+                    ConnectionEvent.Set();
+
+                }), TcpClient);
+
+                if (!ConnectionEvent.Wait(TimeOut) || ConnectionEx != null || !TcpClient.Connected)
                 {
-                    ConnectionEx = ex;
+                    TcpClient.Close();
+
+                    throw new Exception($"Failed Connection - {Address.AbsoluteUri}");
                 }
 
-                ConnectionEvent.Set();
+                TcpClient.ReceiveTimeout = TcpClient.SendTimeout = ReadWriteTimeOut;
 
-            }), TcpClient);
-
-            if (!ConnectionEvent.Wait(TimeOut) || ConnectionEx != null || !TcpClient.Connected)
-            {
-                TcpClient.Close();
-
-                throw new Exception($"Failed Connection - {Address.AbsoluteUri}");
+                return TcpClient;
             }
-
-            TcpClient.ReceiveTimeout = TcpClient.SendTimeout = ReadWriteTimeOut;
-
-            return TcpClient;
+            else
+            {
+                return await Proxy.CreateConnection(Host, Port).ConfigureAwait(false);
+            }
         }
 
         private string GenerateHeaders(HttpMethod Method, long ContentLength = 0, string ContentType = null)
@@ -355,9 +367,10 @@ namespace Yove.Http
         private async Task<HttpResponse> ReconnectFail()
         {
             ReconnectCount++;
-            await Task.Delay(ReconnectDelay);
 
-            return await Raw(Method, Address.AbsoluteUri, Content);
+            await Task.Delay(ReconnectDelay).ConfigureAwait(false);
+
+            return await Raw(Method, Address.AbsoluteUri, Content).ConfigureAwait(false);
         }
 
         private static bool AcceptAllCertifications(object sender, X509Certificate certification, X509Chain chain, SslPolicyErrors sslPolicyErrors)

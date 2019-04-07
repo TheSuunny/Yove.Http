@@ -42,6 +42,18 @@ HttpClient Client = new HttpClient
 };
 ```
 
+### Proxy Client
+
+```
+HttpClient Client = new HttpClient
+{
+    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Http),
+    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks4),
+    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks5),
+    Proxy = new ProxyClient("195.208.172.70:8080", ProxyType.Http),
+};
+```
+
 ### Create Request
 
 | Link | README |
@@ -87,11 +99,11 @@ string Body = Response.Body; //Receives the response body from the server
 
 string Result = Response.Parser("<h1>", "</h1>"); //Parsing HTML data
 
-MemoryStream Stream = Response.ToMemoryStream(); //Return the response in MemoryStream
+MemoryStream Stream = await Response.ToMemoryStream(); //Return the response in MemoryStream
 
-byte[] Bytes = Response.ToBytes(); //Return the response in byte[]
+byte[] Bytes = await Response.ToBytes(); //Return the response in byte[]
 
-string SavePath = Response.ToFile("Path to save", "Filename"); //If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
+string SavePath = await Response.ToFile("Path to save", "Filename"); //If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
 ```
 
 ___
@@ -121,7 +133,7 @@ ___
 
 ### TODO
 
-- [ ] - Proxy Client
+- [x] - Proxy Client
 - [ ] - Json Parser
 - [ ] - Keep Alive
 

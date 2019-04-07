@@ -1,5 +1,5 @@
-using System.Linq;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
@@ -116,7 +116,7 @@ namespace Yove.Http
 
             Content = new Receiver(Request.Connection.ReceiveBufferSize, Request.CommonStream);
 
-            string HeaderSource = Content.Get(false).Replace("\r", null);
+            string HeaderSource = Content.GetAsync(false).ConfigureAwait(false).GetAwaiter().GetResult().Replace("\r", null);
 
             if (string.IsNullOrEmpty(HeaderSource))
             {
@@ -250,7 +250,7 @@ namespace Yove.Http
                         {
                             if (StreamWrapper.TotalBytesRead != ContentLength)
                             {
-                                WaitStream().GetAwaiter().GetResult();
+                                WaitStream().ConfigureAwait(false).GetAwaiter().GetResult();
                                 continue;
                             }
 
@@ -263,7 +263,7 @@ namespace Yove.Http
                     }
                     else
                     {
-                        string GetLine = Content.Get(true);
+                        string GetLine = Content.GetAsync(true).ConfigureAwait(false).GetAwaiter().GetResult();
 
                         if (GetLine == "\r\n")
                             continue;
@@ -289,7 +289,7 @@ namespace Yove.Http
                             {
                                 if (StreamWrapper.TotalBytesRead != BlockLength)
                                 {
-                                    WaitStream().GetAwaiter().GetResult();
+                                    WaitStream().ConfigureAwait(false).GetAwaiter().GetResult();
                                     continue;
                                 }
 
@@ -337,7 +337,7 @@ namespace Yove.Http
                     }
                     else
                     {
-                        WaitStream().GetAwaiter().GetResult();
+                        WaitStream().ConfigureAwait(false).GetAwaiter().GetResult();
                     }
                 }
             }
@@ -345,7 +345,7 @@ namespace Yove.Http
             {
                 while (true)
                 {
-                    string GetLine = Content.Get(true);
+                    string GetLine = Content.GetAsync(true).ConfigureAwait(false).GetAwaiter().GetResult();
 
                     if (GetLine == "\r\n")
                         continue;
@@ -386,7 +386,7 @@ namespace Yove.Http
                         }
                         else
                         {
-                            WaitStream().GetAwaiter().GetResult();
+                            WaitStream().ConfigureAwait(false).GetAwaiter().GetResult();
                         }
                     }
                 }
@@ -435,7 +435,7 @@ namespace Yove.Http
                 {
                     if (Bytes == 0)
                     {
-                        WaitStream().GetAwaiter().GetResult();
+                        WaitStream().ConfigureAwait(false).GetAwaiter().GetResult();
                         continue;
                     }
 
@@ -468,7 +468,7 @@ namespace Yove.Http
                 if (Sleep < Delay)
                 {
                     Sleep += 10;
-                    await Task.Delay(10);
+                    await Task.Delay(10).ConfigureAwait(false);
 
                     continue;
                 }
@@ -485,7 +485,7 @@ namespace Yove.Http
             return HttpUtils.Parser(Start, Body, End);
         }
 
-        public string ToFile(string Path, string Filename = null)
+        public async Task<string> ToFile(string Path, string Filename = null)
         {
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
@@ -510,12 +510,12 @@ namespace Yove.Http
             FileStream File = new FileStream(FullPath, FileMode.Create);
 
             foreach (var Bytes in GetResponseBody())
-                File.Write(Bytes.Value, 0, Bytes.Length);
+                await File.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
 
             return FullPath;
         }
 
-        public byte[] ToBytes()
+        public async Task<byte[]> ToBytes()
         {
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
@@ -523,12 +523,12 @@ namespace Yove.Http
             MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : ContentLength);
 
             foreach (var Bytes in GetResponseBody())
-                Stream.Write(Bytes.Value, 0, Bytes.Length);
+                await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
 
             return Stream.ToArray();
         }
 
-        public MemoryStream ToMemoryStream()
+        public async Task<MemoryStream> ToMemoryStream()
         {
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
@@ -536,7 +536,7 @@ namespace Yove.Http
             MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : ContentLength);
 
             foreach (var Bytes in GetResponseBody())
-                Stream.Write(Bytes.Value, 0, Bytes.Length);
+                await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
 
             Stream.Position = 0;
 

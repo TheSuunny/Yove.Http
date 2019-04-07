@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace Yove.Http
 {
@@ -31,7 +32,7 @@ namespace Yove.Http
             this.BufferSize = BufferSize;
         }
 
-        public override void Write(Stream CommonStream)
+        public override async Task WriteAsync(Stream CommonStream)
         {
             if (Content == null)
                 throw new ObjectDisposedException("Content disposed or empty");
@@ -45,12 +46,12 @@ namespace Yove.Http
 
             while (true)
             {
-                int Bytes = Content.Read(Buffer, 0, Buffer.Length);
+                int Bytes = await Content.ReadAsync(Buffer, 0, Buffer.Length).ConfigureAwait(false);
 
                 if (Bytes == 0)
                     break;
 
-                CommonStream.Write(Buffer, 0, Bytes);
+                await CommonStream.WriteAsync(Buffer, 0, Bytes).ConfigureAwait(false);
             }
         }
 
