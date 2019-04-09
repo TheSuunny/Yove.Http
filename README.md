@@ -44,7 +44,7 @@ HttpClient Client = new HttpClient
 
 ### Proxy Client
 
-```
+```csharp
 HttpClient Client = new HttpClient
 {
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Http),
