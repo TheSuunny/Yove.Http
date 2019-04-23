@@ -485,27 +485,30 @@ namespace Yove.Http
             return HttpUtils.Parser(Start, Body, End);
         }
 
-        public async Task<string> ToFile(string Path, string Filename = null)
+        public async Task<string> ToFile(string LocalPath, string Filename = null)
         {
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
 
-            if (string.IsNullOrEmpty(Path))
+            if (string.IsNullOrEmpty(LocalPath))
                 throw new ArgumentNullException("Path is null or empty");
 
             string FullPath = string.Empty;
 
-            if (Filename == null && !Path.Split('/').Last().Contains("."))
+            if (Filename == null)
             {
                 if (Headers["Content-Disposition"] != null)
-                    FullPath = $"{Path.TrimEnd('/')}/{HttpUtils.Parser("filename=\"", Headers["Content-Disposition"], "\"")}";
+                    FullPath = $"{LocalPath.TrimEnd('/')}/{HttpUtils.Parser("filename=\"", Headers["Content-Disposition"], "\"")}";
                 else
-                    throw new ArgumentNullException("Could not find filename");
+                {
+                    Filename = Path.GetFileName(new Uri(Address.AbsoluteUri).LocalPath);
+
+                    if (string.IsNullOrEmpty(Filename))
+                        throw new ArgumentNullException("Could not find filename");
+                }
             }
-            else if (Filename == null && Path.Split('/').Last().Contains("."))
-                FullPath = Path;
-            else
-                FullPath = $"{Path.TrimEnd('/')}/{Filename}";
+
+            FullPath = $"{LocalPath.TrimEnd('/')}/{Filename}";
 
             FileStream File = new FileStream(FullPath, FileMode.Create);
 
