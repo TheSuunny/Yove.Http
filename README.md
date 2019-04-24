@@ -50,20 +50,20 @@ HttpClient Client = new HttpClient
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Http),
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks4),
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks5),
-    Proxy = new ProxyClient("195.208.172.70:8080", ProxyType.Http),
+    Proxy = new ProxyClient("195.208.172.70:8080", ProxyType.Http)
 };
 ```
 
 ### Create Request
 
-| Link | README |
-| ------ | ------ |
-| ```await Client.Get("http://example.com/");``` | Simple GET request |
-| ```await Client.GetBytes("http://example.com/");``` | Makes a GET request and returns a response byte[] |
-| ```await Client.GetStream("http://example.com/");``` | Makes a GET request and returns a response MemoryStream |
-| ```await Client.GetString("http://example.com/");``` | Makes a GET request and returns a response ToString |
-| ```await Client.Post("http://example.com/", "id=0&message=test");``` | Simple POST request, supports up to 5 reload |
-| ```await Client.Raw(HttpMethod.DELETE, "http://example.com/");``` | Raw method, can accept any parameters included in HttpContent |
+| Link                                                                 | README                                                        |
+| -------------------------------------------------------------------- | ------------------------------------------------------------- |
+| ```await Client.Get("http://example.com/");```                       | Simple GET request                                            |
+| ```await Client.GetBytes("http://example.com/");```                  | Makes a GET request and returns a response byte[]             |
+| ```await Client.GetStream("http://example.com/");```                 | Makes a GET request and returns a response MemoryStream       |
+| ```await Client.GetString("http://example.com/");```                 | Makes a GET request and returns a response ToString           |
+| ```await Client.Post("http://example.com/", "id=0&message=test");``` | Simple POST request, supports up to 5 reload                  |
+| ```await Client.Raw(HttpMethod.DELETE, "http://example.com/");```    | Raw method, can accept any parameters included in HttpContent |
 
 ### Add header / Read header
 
@@ -112,22 +112,22 @@ ___
 
 Supports both default requests and WebDAV
 
-| Method | README |
-| ------ | ------ |
-| GET | Used to query the contents of the specified resource |
-| POST | Used to transfer user data to a specified resource |
-| HEAD | Used to extract metadata |
-| PUT | Used to load the contents of the request to the URI specified in the request |
-| DELETE | Deletes the specified resource |
-| PATCH | Similar to PUT, but applies only to a resource fragment |
-| OPTIONS | Used to determine web server capabilities or connection settings for a specific resource |
-| PROPFIND | Getting object properties on the server in XML format |
-| PROPPATCH | Change properties in a single transaction |
-| MKCOL | Create a collection of objects (directory in the case of access to files) |
-| COPY | Copy from one URI to another |
-| MOVE | Move from one URI to another |
-| LOCK | Put a lock on the object |
-| UNLOCK | Unlock a resource |
+| Method    | README                                                                                   |
+| --------- | ---------------------------------------------------------------------------------------- |
+| GET       | Used to query the contents of the specified resource                                     |
+| POST      | Used to transfer user data to a specified resource                                       |
+| HEAD      | Used to extract metadata                                                                 |
+| PUT       | Used to load the contents of the request to the URI specified in the request             |
+| DELETE    | Deletes the specified resource                                                           |
+| PATCH     | Similar to PUT, but applies only to a resource fragment                                  |
+| OPTIONS   | Used to determine web server capabilities or connection settings for a specific resource |
+| PROPFIND  | Getting object properties on the server in XML format                                    |
+| PROPPATCH | Change properties in a single transaction                                                |
+| MKCOL     | Create a collection of objects (directory in the case of access to files)                |
+| COPY      | Copy from one URI to another                                                             |
+| MOVE      | Move from one URI to another                                                             |
+| LOCK      | Put a lock on the object                                                                 |
+| UNLOCK    | Unlock a resource                                                                        |
 
 ___
 
