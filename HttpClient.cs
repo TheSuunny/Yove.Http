@@ -1,12 +1,13 @@
 ﻿using System;
 using System.IO;
-using System.Text;
+using System.Collections.Specialized;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Security.Cryptography.X509Certificates;
-using System.Collections.Specialized;
 using Yove.Http.Proxy;
 
 namespace Yove.Http
@@ -20,10 +21,11 @@ namespace Yove.Http
 
         public string Username { get; set; }
         public string Password { get; set; }
-        public string Language { get; set; } = "en;q=0.9";
+        public string Language { get; set; } = "en-US,en;q=0.9";
         public string Referer { get; set; }
         public string UserAgent { get; set; }
         public string Authorization { get; set; }
+        public string Accept { get; set; } = "*/*";
 
         public Encoding CharacterSet { get; set; }
 
@@ -182,7 +184,8 @@ namespace Yove.Http
                 try
                 {
                     SslStream SSL = new SslStream(NetworkStream, false, AcceptAllCertificationsCallback);
-                    await SSL.AuthenticateAsClientAsync(Address.Host).ConfigureAwait(false);
+
+                    await SSL.AuthenticateAsClientAsync(Address.Host, null, SslProtocols.Tls12, false).ConfigureAwait(false);
 
                     CommonStream = SSL;
                 }
@@ -302,10 +305,14 @@ namespace Yove.Http
             else
                 Headers["Host"] = $"{Address.Host}:{Address.Port}";
 
-            if (KeepAlive)
-                Headers["Connection"] = "keep-alive";
-            else
-                Headers["Connection"] = "close";
+            if (!string.IsNullOrEmpty(UserAgent))
+                Headers["User-Agent"] = UserAgent;
+
+            Headers["Accept"] = Accept;
+            Headers["Accept-Language"] = Language;
+
+            if (EnableEncodingContent)
+                Headers["Accept-Encoding"] = "gzip,deflate";
 
             if (!string.IsNullOrEmpty(Username) && !string.IsNullOrEmpty(Password))
             {
@@ -314,16 +321,8 @@ namespace Yove.Http
                 Headers["Authorization"] = $"Basic {Auth}";
             }
 
-            if (EnableEncodingContent)
-                Headers["Accept-Encoding"] = "gzip,deflate";
-
-            Headers["Accept-Language"] = Language;
-
             if (!string.IsNullOrEmpty(Referer))
                 Headers["Referer"] = Referer;
-
-            if (!string.IsNullOrEmpty(UserAgent))
-                Headers["User-Agent"] = UserAgent;
 
             if (!string.IsNullOrEmpty(Authorization))
                 Headers["Authorization"] = Authorization;
@@ -336,13 +335,16 @@ namespace Yove.Http
                     Headers["Accept-Charset"] = "utf-8";
             }
 
-            if (Method != HttpMethod.GET)
+            if (Method != HttpMethod.GET && ContentLength > 0)
             {
-                if (ContentLength > 0)
-                    Headers["Content-Type"] = ContentType;
-
+                Headers["Content-Type"] = ContentType;
                 Headers["Content-Length"] = ContentLength.ToString();
             }
+
+            if (KeepAlive)
+                Headers["Connection"] = "keep-alive";
+            else
+                Headers["Connection"] = "close";
 
             if (Cookies != null && Cookies.Count > 0)
             {
@@ -359,9 +361,7 @@ namespace Yove.Http
             foreach (var Header in Headers)
                 Builder.AppendFormat($"{Header}: {Headers[(string)Header]}\r\n");
 
-            Builder.AppendLine();
-
-            return Builder.ToString();
+            return $"{Builder}\r\n";
         }
 
         private async Task<HttpResponse> ReconnectFail()
