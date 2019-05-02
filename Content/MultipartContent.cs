@@ -141,9 +141,9 @@ namespace Yove.Http
 
             if (Filename == null)
             {
-                if (Content.Path.Split('/').Last().Contains("."))
-                    Filename = Content.Path.Split('/').Last();
-                else
+                Filename = Path.GetFileName(Content.Path);
+
+                if (string.IsNullOrEmpty(Filename))
                     throw new ArgumentNullException("Path is null or empty");
             }
 
@@ -167,9 +167,7 @@ namespace Yove.Http
 
             if (Filename == null)
             {
-                if (Content.Path.Split('/').Last().Contains("."))
-                    Filename = Content.Path.Split('/').Last();
-                else
+                if (string.IsNullOrEmpty(Filename))
                     throw new ArgumentNullException("Path is null or empty");
             }
 

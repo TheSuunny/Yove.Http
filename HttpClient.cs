@@ -335,9 +335,11 @@ namespace Yove.Http
                     Headers["Accept-Charset"] = "utf-8";
             }
 
-            if (Method != HttpMethod.GET && ContentLength > 0)
+            if (Method != HttpMethod.GET)
             {
-                Headers["Content-Type"] = ContentType;
+                if (ContentLength > 0)
+                    Headers["Content-Type"] = ContentType;
+
                 Headers["Content-Length"] = ContentLength.ToString();
             }
 
