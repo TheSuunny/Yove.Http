@@ -12,7 +12,7 @@ using Yove.Http.Proxy;
 
 namespace Yove.Http
 {
-    public class HttpClient : ICloneable
+    public class HttpClient : IDisposable, ICloneable
     {
         public ProxyClient Proxy { get; set; }
 
@@ -77,17 +77,6 @@ namespace Yove.Http
         internal HttpMethod Method { get; set; }
         internal HttpContent Content { get; set; }
         internal RemoteCertificateValidationCallback AcceptAllCertificationsCallback = new RemoteCertificateValidationCallback(AcceptAllCertifications);
-
-        public void Dispose()
-        {
-            if (Connection != null)
-            {
-                Connection.Dispose();
-
-                NetworkStream.Dispose();
-                CommonStream.Dispose();
-            }
-        }
 
         public async Task<HttpResponse> Post(string URL)
         {
@@ -383,6 +372,17 @@ namespace Yove.Http
         public object Clone()
         {
             return this.MemberwiseClone();
+        }
+
+        public void Dispose()
+        {
+            if (Connection != null)
+            {
+                Connection.Dispose();
+
+                NetworkStream.Dispose();
+                CommonStream.Dispose();
+            }
         }
     }
 }
