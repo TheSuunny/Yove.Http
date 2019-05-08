@@ -128,7 +128,7 @@ namespace Yove.Http
             StatusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($"HTTP/{ProtocolVersion} ", HeaderSource, " ")?.Trim());
             ContentType = HttpUtils.Parser("Content-Type: ", HeaderSource, "\n")?.Trim();
             ContentEncoding = HttpUtils.Parser("Content-Encoding: ", HeaderSource, "\n")?.Trim();
-            Location = HttpUtils.Parser("Location: ", HeaderSource, "\n")?.Trim();
+            Location = HttpUtils.Parser("location: ", HeaderSource.ToLower(), "\n")?.Trim();
 
             if (HeaderSource.Contains("Content-Length"))
                 ContentLength = Convert.ToInt32(HttpUtils.Parser("Content-Length: ", HeaderSource, "\n")?.Trim());
@@ -161,7 +161,7 @@ namespace Yove.Http
                     continue;
 
                 string Key = Header.Split(':')[0]?.Trim();
-                string Value = Header.Split(':')[1]?.Trim();
+                string Value = Header.Substring(Key.Count() + 2)?.Trim();
 
                 if (!string.IsNullOrEmpty(Key))
                 {
