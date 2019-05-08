@@ -281,8 +281,8 @@ namespace Yove.Http.Proxy
             {
                 if (Ip.AddressFamily == AddressFamily.InterNetwork)
                     return AddressTypeIPV4;
-                else
-                    return AddressTypeIPV6;
+
+                return AddressTypeIPV6;
             }
 
             return AddressTypeDomainName;
@@ -294,17 +294,10 @@ namespace Yove.Http.Proxy
 
             if (!IPAddress.TryParse(DestinationHost, out Address))
             {
-                try
-                {
-                    IPAddress[] IPs = Dns.GetHostAddresses(DestinationHost);
+                IPAddress[] IPs = Dns.GetHostAddresses(DestinationHost);
 
-                    if (IPs.Length > 0)
-                        Address = IPs[0];
-                }
-                catch (Exception ex)
-                {
-                    throw new ProxyException(ex.Message);
-                }
+                if (IPs.Length > 0)
+                    Address = IPs[0];
             }
 
             return Address.GetAddressBytes();
