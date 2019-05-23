@@ -130,7 +130,7 @@ namespace Yove.Http
             ContentEncoding = HttpUtils.Parser("Content-Encoding: ", HeaderSource, "\n")?.Trim();
             Location = HttpUtils.Parser("location: ", HeaderSource.ToLower(), "\n")?.Trim();
 
-            if (Location != null && !Location.Contains(Address.Authority))
+            if (Location != null && !Location.StartsWith("/"))
                 Location = $"{Address.Scheme}://{Address.Authority}/{Location.TrimStart('/')}";
 
             if (HeaderSource.Contains("Content-Length"))
