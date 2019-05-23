@@ -402,6 +402,8 @@ namespace Yove.Http
             foreach (var Header in Headers)
                 Builder.AppendFormat($"{Header}: {Headers[(string)Header]}\r\n");
 
+            Headers.Clear();
+
             return $"{Builder}\r\n";
         }
 
