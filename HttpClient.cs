@@ -376,15 +376,31 @@ namespace Yove.Http
                 Headers["Content-Length"] = ContentLength.ToString();
             }
 
-            if (KeepAlive)
+            if (Proxy != null && Proxy.Type == ProxyType.Http)
             {
-                Headers["Connection"] = "keep-alive";
+                if (KeepAlive)
+                {
+                    Headers["Proxy-Connection"] = "keep-alive";
 
-                KeepAliveRequestCount++;
+                    KeepAliveRequestCount++;
+                }
+                else
+                {
+                    Headers["Proxy-Connection"] = "close";
+                }
             }
             else
             {
-                Headers["Connection"] = "close";
+                if (KeepAlive)
+                {
+                    Headers["Connection"] = "keep-alive";
+
+                    KeepAliveRequestCount++;
+                }
+                else
+                {
+                    Headers["Connection"] = "close";
+                }
             }
 
             if (Cookies != null && Cookies.Count > 0)
