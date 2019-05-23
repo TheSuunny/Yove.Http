@@ -4,6 +4,8 @@
 [![Downloads](https://img.shields.io/nuget/dt/Yove.Http.svg)](https://www.nuget.org/packages/Yove.Http)
 [![Target](https://img.shields.io/badge/.NET%20Standard-2.0-green.svg)](https://docs.microsoft.com/ru-ru/dotnet/standard/net-standard)
 
+<a href="https://www.buymeacoffee.com/3ZEnINLSR" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: auto !important;width: auto !important;" ></a>
+
 Nuget: https://www.nuget.org/packages/Yove.Http/
 
 ```
@@ -145,4 +147,4 @@ This project is not related to xYove or xNet.
 
 If you are missing something in the library, do not be afraid to write me :)
 
-<yove@keemail.me>
+<thesunny@tuta.io>
