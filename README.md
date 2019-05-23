@@ -38,7 +38,7 @@ HttpClient Client = new HttpClient
     EnableReconnect = false, //Disable reconnection in case of connection errors or data reading
     ReconnectDelay = 1000, //Delay in attempting a new connection
     ReconnectLimit = 3, //Maximum number of reconnection attempts
-    UserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.3440.84 Safari/537.36" //Sets User Agent
+    UserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.3440.84 Safari/537.36" //Set User Agent
 };
 ```
 
@@ -134,8 +134,8 @@ ___
 ### TODO
 
 - [x] - Proxy Client
+- [x] - Keep Alive
 - [ ] - Json Parser
-- [ ] - Keep Alive
 
 ___
 

@@ -130,12 +130,15 @@ namespace Yove.Http
             ContentEncoding = HttpUtils.Parser("Content-Encoding: ", HeaderSource, "\n")?.Trim();
             Location = HttpUtils.Parser("location: ", HeaderSource.ToLower(), "\n")?.Trim();
 
+            if (Location != null && !Location.Contains(Address.Authority))
+                Location = $"{Address.Scheme}://{Address.Authority}/{Location.TrimStart('/')}";
+
             if (HeaderSource.Contains("Content-Length"))
                 ContentLength = Convert.ToInt32(HttpUtils.Parser("Content-Length: ", HeaderSource, "\n")?.Trim());
 
             if (HeaderSource.Contains("Keep-Alive"))
             {
-                KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("Keep-Alive: timeout=", HeaderSource, ",")?.Trim());
+                KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("Keep-Alive: timeout=", HeaderSource, ",")?.Trim()) * 1000;
                 KeepAliveMax = Convert.ToInt32(HttpUtils.Parser($"Keep-Alive: timeout={KeepAliveTimeout}, max=", HeaderSource, "\n")?.Trim());
             }
 

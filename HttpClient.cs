@@ -14,7 +14,21 @@ namespace Yove.Http
 {
     public class HttpClient : IDisposable, ICloneable
     {
-        public ProxyClient Proxy { get; set; }
+        public ProxyClient Proxy
+        {
+            get
+            {
+                return proxy;
+            }
+            set
+            {
+                proxy = value;
+
+                HasConnection = false;
+            }
+        }
+
+        private ProxyClient proxy { get; set; }
 
         public NameValueCollection Headers = new NameValueCollection();
         public NameValueCollection Cookies { get; set; }
@@ -29,12 +43,16 @@ namespace Yove.Http
 
         public Encoding CharacterSet { get; set; }
 
-        public bool KeepAlive { get; set; } = false;
+        public bool KeepAlive { get; set; } = true;
+        public int KeepAliveTimeOut { get; set; } = 60000;
+        public int KeepAliveMaxRequest { get; set; } = 100;
+
         public bool EnableEncodingContent { get; set; } = true;
         public bool EnableAutoRedirect { get; set; } = true;
         public bool EnableProtocolError { get; set; } = true;
         public bool EnableCookies { get; set; } = true;
         public bool EnableReconnect { get; set; } = true;
+        public bool HasConnection { get; set; }
 
         public int ReconnectLimit { get; set; } = 3;
         public int ReconnectDelay { get; set; } = 1000;
@@ -46,6 +64,9 @@ namespace Yove.Http
         private HttpResponse Response { get; set; }
 
         private int ReconnectCount { get; set; }
+        private int KeepAliveRequestCount { get; set; }
+
+        private DateTime WhenConnectionIdle { get; set; }
 
         public string this[string Key]
         {
@@ -140,52 +161,60 @@ namespace Yove.Http
 
         public async Task<HttpResponse> Raw(HttpMethod Method, string URL, HttpContent Content = null)
         {
-            Dispose();
-
             if (string.IsNullOrEmpty(URL))
                 throw new ArgumentNullException("URL is null or empty.");
 
-            this.Address = new UriBuilder(URL).Uri;
             this.Method = Method;
             this.Content = Content;
-
-            Headers.Clear();
 
             if (EnableCookies && Cookies == null)
                 Cookies = new NameValueCollection();
 
-            try
+            if (CheckKeepAlive() || Address.Host != new UriBuilder(URL).Host)
             {
-                Connection = await CreateConnection(Address.Host, Address.Port).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                if (CanReconnect)
-                    return await ReconnectFail().ConfigureAwait(false);
+                Dispose();
 
-                throw ex;
-            }
+                this.Address = new UriBuilder(URL).Uri;
 
-            NetworkStream = Connection.GetStream();
-
-            if (Address.Scheme.StartsWith("https"))
-            {
                 try
                 {
-                    SslStream SSL = new SslStream(NetworkStream, false, AcceptAllCertificationsCallback);
+                    Connection = await CreateConnection(Address.Host, Address.Port).ConfigureAwait(false);
 
-                    await SSL.AuthenticateAsClientAsync(Address.Host, null, SslProtocols.Tls12, false).ConfigureAwait(false);
+                    NetworkStream = Connection.GetStream();
 
-                    CommonStream = SSL;
+                    if (Address.Scheme.StartsWith("https"))
+                    {
+                        try
+                        {
+                            SslStream SSL = new SslStream(NetworkStream, false, AcceptAllCertificationsCallback);
+
+                            await SSL.AuthenticateAsClientAsync(Address.Host, null, SslProtocols.Tls12, false).ConfigureAwait(false);
+
+                            CommonStream = SSL;
+                        }
+                        catch (Exception ex)
+                        {
+                            throw ex;
+                        }
+                    }
+                    else
+                    {
+                        CommonStream = NetworkStream;
+                    }
+
+                    HasConnection = true;
                 }
                 catch (Exception ex)
                 {
+                    if (CanReconnect)
+                        return await ReconnectFail().ConfigureAwait(false);
+
                     throw ex;
                 }
             }
             else
             {
-                CommonStream = NetworkStream;
+                this.Address = new UriBuilder(URL).Uri;
             }
 
             try
@@ -222,13 +251,14 @@ namespace Yove.Http
             }
             catch
             {
-                if (CanReconnect)
+                if (CanReconnect || KeepAlive)
                     return await ReconnectFail().ConfigureAwait(false);
 
                 throw new Exception($"Failed receive data from - {Address.AbsoluteUri}");
             }
 
             ReconnectCount = 0;
+            WhenConnectionIdle = DateTime.Now;
 
             if (EnableProtocolError)
             {
@@ -243,6 +273,20 @@ namespace Yove.Http
                 return await Raw(Method, Response.Location, Content).ConfigureAwait(false);
 
             return Response;
+        }
+
+        private bool CheckKeepAlive()
+        {
+            int MaxRequest = (Response != null && Response.KeepAliveMax != 0) ? Response.KeepAliveMax : KeepAliveMaxRequest;
+            int Timeout = (Response != null && Response.KeepAliveTimeout != 0) ? Response.KeepAliveTimeout : KeepAliveTimeOut;
+
+            if (KeepAliveRequestCount == 0 || KeepAliveRequestCount == MaxRequest || (Response != null && Response.ConnectionClose) || !HasConnection)
+                return true;
+
+            if (WhenConnectionIdle.AddMilliseconds(TimeOut) < DateTime.Now)
+                return true;
+
+            return false;
         }
 
         private async Task<TcpClient> CreateConnection(string Host, int Port)
@@ -333,9 +377,15 @@ namespace Yove.Http
             }
 
             if (KeepAlive)
+            {
                 Headers["Connection"] = "keep-alive";
+
+                KeepAliveRequestCount++;
+            }
             else
+            {
                 Headers["Connection"] = "close";
+            }
 
             if (Cookies != null && Cookies.Count > 0)
             {
@@ -357,6 +407,8 @@ namespace Yove.Http
 
         private async Task<HttpResponse> ReconnectFail()
         {
+            Dispose();
+
             ReconnectCount++;
 
             await Task.Delay(ReconnectDelay).ConfigureAwait(false);
@@ -378,10 +430,14 @@ namespace Yove.Http
         {
             if (Connection != null)
             {
+                Connection.Close();
                 Connection.Dispose();
 
                 NetworkStream.Dispose();
                 CommonStream.Dispose();
+
+                KeepAliveRequestCount = 0;
+                HasConnection = false;
             }
         }
     }
