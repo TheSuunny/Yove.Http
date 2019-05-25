@@ -237,24 +237,24 @@ namespace Yove.Http
                 if (Content != null && ContentLength != 0)
                     await Content.WriteAsync(CommonStream).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
                 if (CanReconnect)
                     return await ReconnectFail().ConfigureAwait(false);
 
-                throw new Exception($"Failed send data to - {Address.AbsoluteUri}");
+                throw new Exception($"Failed send data to - {Address.AbsoluteUri}", ex);
             }
 
             try
             {
                 Response = new HttpResponse(this);
             }
-            catch
+            catch (Exception ex)
             {
                 if (CanReconnect || KeepAlive)
                     return await ReconnectFail().ConfigureAwait(false);
 
-                throw new Exception($"Failed receive data from - {Address.AbsoluteUri}");
+                throw new Exception($"Failed receive data from - {Address.AbsoluteUri}", ex);
             }
 
             ReconnectCount = 0;
