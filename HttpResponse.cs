@@ -133,7 +133,7 @@ namespace Yove.Http
             if (Location != null && Location.StartsWith("/"))
                 Location = $"{Address.Scheme}://{Address.Authority}/{Location.TrimStart('/')}";
 
-            if (HeaderSource.Contains("Content-Length"))
+            if (HeaderSource.Contains("Content-Length:"))
                 ContentLength = Convert.ToInt32(HttpUtils.Parser("Content-Length: ", HeaderSource, "\n")?.Trim());
 
             if (HeaderSource.Contains("Keep-Alive"))
