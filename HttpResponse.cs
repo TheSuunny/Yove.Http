@@ -22,7 +22,7 @@ namespace Yove.Http
         public string ProtocolVersion { get; private set; }
         public string Location { get; private set; }
 
-        public int ContentLength { get; private set; } = -1;
+        public long ContentLength { get; private set; } = -1;
         public int KeepAliveTimeout { get; private set; }
         public int KeepAliveMax { get; private set; }
 
@@ -42,7 +42,7 @@ namespace Yove.Http
                 if (NoContent || SourceBody != null)
                     return SourceBody;
 
-                MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : ContentLength);
+                MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : (int)ContentLength);
 
                 foreach (var Bytes in GetResponseBody())
                     Stream.Write(Bytes.Value, 0, Bytes.Length);
@@ -134,7 +134,7 @@ namespace Yove.Http
                 Location = $"{Address.Scheme}://{Address.Authority}/{Location.TrimStart('/')}";
 
             if (HeaderSource.Contains("Content-Length:"))
-                ContentLength = Convert.ToInt32(HttpUtils.Parser("Content-Length: ", HeaderSource, "\n")?.Trim());
+                ContentLength = Convert.ToInt64(HttpUtils.Parser("Content-Length: ", HeaderSource, "\n")?.Trim());
 
             if (HeaderSource.Contains("Keep-Alive"))
             {
@@ -526,7 +526,7 @@ namespace Yove.Http
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
 
-            MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : ContentLength);
+            MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : (int)ContentLength);
 
             foreach (var Bytes in GetResponseBody())
                 await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
@@ -539,7 +539,7 @@ namespace Yove.Http
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
 
-            MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : ContentLength);
+            MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : (int)ContentLength);
 
             foreach (var Bytes in GetResponseBody())
                 await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);

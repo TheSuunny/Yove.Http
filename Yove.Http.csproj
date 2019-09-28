@@ -4,7 +4,7 @@
   </PropertyGroup>
   <PropertyGroup>
     <id>Yove.Http</id>
-    <Version>1.1.9</Version>
+    <Version>1.2.0</Version>
     <Authors>Sunny</Authors>
     <NeutralLanguage>en-US, ru-RU</NeutralLanguage>
     <Description>Http Client / Http Framework for .Net / .Net Core</Description>
@@ -17,6 +17,6 @@
     <RepositoryUrl>https://github.com/TheSuunny/Yove.Http</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.1"/>
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="4.6.0"/>
   </ItemGroup>
 </Project>
