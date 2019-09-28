@@ -159,6 +159,13 @@ namespace Yove.Http
             return await Response.ToMemoryStream().ConfigureAwait(false);
         }
 
+        public async Task<string> GetToFile(string URL, string LocalPath, string Filename = null)
+        {
+            HttpResponse Response = await Raw(HttpMethod.GET, URL).ConfigureAwait(false);
+
+            return await Response.ToFile(LocalPath, Filename).ConfigureAwait(false);
+        }
+
         public async Task<HttpResponse> Raw(HttpMethod Method, string URL, HttpContent Content = null)
         {
             if (string.IsNullOrEmpty(URL))

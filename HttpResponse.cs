@@ -320,7 +320,7 @@ namespace Yove.Http
 
             if (!Chunked)
             {
-                int TotalBytesRead = 0;
+                long TotalBytesRead = 0;
 
                 while (TotalBytesRead != ContentLength)
                 {
@@ -359,7 +359,7 @@ namespace Yove.Http
                         yield break;
 
                     int BlockLength = 0;
-                    int TotalBytesRead = 0;
+                    long TotalBytesRead = 0;
 
                     BlockLength = Convert.ToInt32(GetLine, 16);
 
@@ -368,7 +368,7 @@ namespace Yove.Http
 
                     while (TotalBytesRead != BlockLength)
                     {
-                        int Length = BlockLength - TotalBytesRead;
+                        long Length = BlockLength - TotalBytesRead;
 
                         if (Length > BufferSize)
                             Length = BufferSize;
@@ -376,9 +376,9 @@ namespace Yove.Http
                         int BytesRead = 0;
 
                         if (Content.HasData)
-                            BytesRead = Content.Read(Buffer, 0, Length);
+                            BytesRead = Content.Read(Buffer, 0, (int)Length);
                         else
-                            BytesRead = Request.CommonStream.Read(Buffer, 0, Length);
+                            BytesRead = Request.CommonStream.Read(Buffer, 0, (int)Length);
 
                         if (BytesRead != 0)
                         {
@@ -513,10 +513,11 @@ namespace Yove.Http
 
             FullPath = $"{LocalPath.TrimEnd('/')}/{Filename}";
 
-            FileStream File = new FileStream(FullPath, FileMode.Create);
-
-            foreach (var Bytes in GetResponseBody())
-                await File.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
+            using (FileStream Stream = new FileStream(FullPath, FileMode.Append))
+            {
+                foreach (BytesWraper Bytes in GetResponseBody())
+                    await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
+            }
 
             return FullPath;
         }
