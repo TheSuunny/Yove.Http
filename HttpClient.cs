@@ -195,7 +195,7 @@ namespace Yove.Http
                         {
                             SslStream SSL = new SslStream(NetworkStream, false, AcceptAllCertificationsCallback);
 
-                            await SSL.AuthenticateAsClientAsync(Address.Host, null, SslProtocols.Tls12, false).ConfigureAwait(false);
+                            await SSL.AuthenticateAsClientAsync(Address.Host, null, SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls, false).ConfigureAwait(false);
 
                             CommonStream = SSL;
                         }
@@ -459,7 +459,6 @@ namespace Yove.Http
                 Connection.Dispose();
 
                 NetworkStream.Dispose();
-                CommonStream.Dispose();
 
                 KeepAliveRequestCount = 0;
                 HasConnection = false;
