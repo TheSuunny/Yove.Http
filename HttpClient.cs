@@ -102,6 +102,8 @@ namespace Yove.Http
         internal HttpContent Content { get; set; }
         internal RemoteCertificateValidationCallback AcceptAllCertificationsCallback = new RemoteCertificateValidationCallback(AcceptAllCertifications);
 
+        public HttpClient() { }
+
         public HttpClient(string BaseURL)
         {
             this.BaseURL = BaseURL;
