@@ -10,7 +10,6 @@
     <Description>Http Client / Http Framework for .Net / .Net Core</Description>
     <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <PackageTags>http; client; framework; .net core; .net</PackageTags>
-    <PackageIconUrl>https://raw.githubusercontent.com/TheSuunny/xYove/master/Splash.png</PackageIconUrl>
     <PackageProjectUrl>https://github.com/TheSuunny/Yove.Http</PackageProjectUrl>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <RepositoryType>git</RepositoryType>
