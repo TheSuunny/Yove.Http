@@ -74,7 +74,7 @@ HttpClient Client = new HttpClient("Base URL")
 
 ```csharp
 Client.Headers.Add("Token", Token);
-Client.AddTempHeader("Token", Token); //This header will be deleted after the request.
+Client.AddTempHeader("Token", Token); //This header will be deleted after the request
 
 Client["Token"] = Token;
 
