@@ -15,7 +15,8 @@ Install-Package Yove.Http
 ```
 dotnet add package Yove.Http
 ```
-___
+
+---
 
 ### Create HttpClient
 
@@ -58,19 +59,20 @@ HttpClient Client = new HttpClient
 
 ### Create Request
 
-| Link                                                                 | README                                                        |
-| -------------------------------------------------------------------- | ------------------------------------------------------------- |
-| ```await Client.Get("http://example.com/");```                       | Simple GET request                                            |
-| ```await Client.GetBytes("http://example.com/");```                  | Makes a GET request and returns a response byte[]             |
-| ```await Client.GetStream("http://example.com/");```                 | Makes a GET request and returns a response MemoryStream       |
-| ```await Client.GetString("http://example.com/");```                 | Makes a GET request and returns a response ToString           |
-| ```await Client.Post("http://example.com/", "id=0&message=test");``` | Simple POST request, supports up to 5 reload                  |
-| ```await Client.Raw(HttpMethod.DELETE, "http://example.com/");```    | Raw method, can accept any parameters included in HttpContent |
+| Link                                                             | README                                                        |
+| ---------------------------------------------------------------- | ------------------------------------------------------------- |
+| `await Client.Get("http://example.com/");`                       | Simple GET request                                            |
+| `await Client.GetBytes("http://example.com/");`                  | Makes a GET request and returns a response byte[]             |
+| `await Client.GetStream("http://example.com/");`                 | Makes a GET request and returns a response MemoryStream       |
+| `await Client.GetString("http://example.com/");`                 | Makes a GET request and returns a response ToString           |
+| `await Client.Post("http://example.com/", "id=0&message=test");` | Simple POST request, supports up to 5 reload                  |
+| `await Client.Raw(HttpMethod.DELETE, "http://example.com/");`    | Raw method, can accept any parameters included in HttpContent |
 
 ### Add header / Read header
 
 ```csharp
 Client.Headers.Add("Token", Token);
+Client.AddTempHeaders("Token", Token);
 
 Client["Token"] = Token;
 
@@ -108,7 +110,7 @@ byte[] Bytes = await Response.ToBytes(); //Return the response in byte[]
 string SavePath = await Response.ToFile("Path to save", "Filename"); //If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
 ```
 
-___
+---
 
 ### Methods
 
@@ -131,7 +133,7 @@ Supports both default requests and WebDAV
 | LOCK      | Put a lock on the object                                                                 |
 | UNLOCK    | Unlock a resource                                                                        |
 
-___
+---
 
 ### TODO
 
@@ -139,7 +141,7 @@ ___
 - [x] - Keep Alive
 - [ ] - Json Parser
 
-___
+---
 
 ### Other
 

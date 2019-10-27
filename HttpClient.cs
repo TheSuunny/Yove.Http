@@ -31,6 +31,8 @@ namespace Yove.Http
         private ProxyClient proxy { get; set; }
 
         public NameValueCollection Headers = new NameValueCollection();
+        public NameValueCollection TempHeaders = new NameValueCollection();
+
         public NameValueCollection Cookies { get; set; }
 
         public string Username { get; set; }
@@ -425,7 +427,10 @@ namespace Yove.Http
             foreach (var Header in Headers)
                 Builder.AppendFormat($"{Header}: {Headers[(string)Header]}\r\n");
 
-            Headers.Clear();
+            foreach (var Header in TempHeaders)
+                Builder.AppendFormat($"{Header}: {Headers[(string)Header]}\r\n");
+
+            TempHeaders.Clear();
 
             return $"{Builder}\r\n";
         }
@@ -444,6 +449,17 @@ namespace Yove.Http
         private static bool AcceptAllCertifications(object sender, X509Certificate certification, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             return true;
+        }
+
+        public void AddTempHeaders(string Key, string Value)
+        {
+            if (string.IsNullOrEmpty(Key))
+                throw new ArgumentNullException("Key is null or empty.");
+
+            if (string.IsNullOrEmpty(Value))
+                throw new ArgumentNullException("Value is null or empty.");
+
+            TempHeaders.Add(Key, Value);
         }
 
         public object Clone()

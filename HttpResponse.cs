@@ -22,7 +22,7 @@ namespace Yove.Http
         public string ProtocolVersion { get; private set; }
         public string Location { get; private set; }
 
-        public long ContentLength { get; private set; } = -1;
+        public long? ContentLength { get; private set; }
         public int KeepAliveTimeout { get; private set; }
         public int KeepAliveMax { get; private set; }
 
@@ -42,7 +42,7 @@ namespace Yove.Http
                 if (NoContent || SourceBody != null)
                     return SourceBody;
 
-                MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : (int)ContentLength);
+                MemoryStream Stream = new MemoryStream((ContentLength == null) ? 0 : (int)ContentLength);
 
                 foreach (var Bytes in GetResponseBody())
                     Stream.Write(Bytes.Value, 0, Bytes.Length);
@@ -202,7 +202,7 @@ namespace Yove.Http
                 if (Headers["Transfer-Encoding"] != null)
                     return ReceiveZipBody(true);
 
-                if (ContentLength != -1)
+                if (ContentLength != null)
                     return ReceiveZipBody(false);
 
                 return ReceiveUnsizeBody(GetZipStream(new StreamWrapper(Request.CommonStream, Content)));
@@ -211,7 +211,7 @@ namespace Yove.Http
             if (Headers["Transfer-Encoding"] != null)
                 return ReceiveStandartBody(true);
 
-            if (ContentLength != -1)
+            if (ContentLength != null)
                 return ReceiveStandartBody(false);
 
             return ReceiveUnsizeBody(Request.CommonStream);
@@ -527,7 +527,7 @@ namespace Yove.Http
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
 
-            MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : (int)ContentLength);
+            MemoryStream Stream = new MemoryStream((ContentLength == null) ? 0 : (int)ContentLength);
 
             foreach (var Bytes in GetResponseBody())
                 await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
@@ -540,7 +540,7 @@ namespace Yove.Http
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
 
-            MemoryStream Stream = new MemoryStream((ContentLength == -1) ? 0 : (int)ContentLength);
+            MemoryStream Stream = new MemoryStream((ContentLength == null) ? 0 : (int)ContentLength);
 
             foreach (var Bytes in GetResponseBody())
                 await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
