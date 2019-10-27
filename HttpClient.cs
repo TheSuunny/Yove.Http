@@ -298,9 +298,11 @@ namespace Yove.Http
         private bool CheckKeepAlive()
         {
             int MaxRequest = (Response != null && Response.KeepAliveMax != 0) ? Response.KeepAliveMax : KeepAliveMaxRequest;
+
             int Timeout = (Response != null && Response.KeepAliveTimeout != 0) ? Response.KeepAliveTimeout : KeepAliveTimeOut;
 
-            if (KeepAliveRequestCount == 0 || KeepAliveRequestCount == MaxRequest || (Response != null && Response.ConnectionClose) || !HasConnection)
+            if (KeepAliveRequestCount == 0 || KeepAliveRequestCount == MaxRequest ||
+                (Response != null && Response.ConnectionClose) || !HasConnection)
                 return true;
 
             if (WhenConnectionIdle.AddMilliseconds(TimeOut) < DateTime.Now)
@@ -436,6 +438,9 @@ namespace Yove.Http
             }
 
             StringBuilder Builder = new StringBuilder();
+
+            foreach (var Header in RawHeaders)
+                Builder.AppendFormat($"{Header}: {RawHeaders[(string)Header]}\r\n");
 
             foreach (var Header in Headers)
                 Builder.AppendFormat($"{Header}: {Headers[(string)Header]}\r\n");
