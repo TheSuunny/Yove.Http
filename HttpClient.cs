@@ -182,7 +182,7 @@ namespace Yove.Http
                 throw new ArgumentNullException("URL is null or empty.");
 
             if ((!URL.StartsWith("https://") && !URL.StartsWith("http://")) && !string.IsNullOrEmpty(BaseURL))
-                URL = $"{BaseURL}{URL}";
+                URL = $"{BaseURL.TrimEnd('/')}/{URL}";
 
             this.Method = Method;
             this.Content = Content;
