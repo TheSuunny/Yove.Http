@@ -342,73 +342,75 @@ namespace Yove.Http
 
         private string GenerateHeaders(HttpMethod Method, long ContentLength = 0, string ContentType = null)
         {
+            NameValueCollection RawHeaders = new NameValueCollection();
+
             if (Address.IsDefaultPort)
-                Headers["Host"] = Address.Host;
+                RawHeaders["Host"] = Address.Host;
             else
-                Headers["Host"] = $"{Address.Host}:{Address.Port}";
+                RawHeaders["Host"] = $"{Address.Host}:{Address.Port}";
 
             if (!string.IsNullOrEmpty(UserAgent))
-                Headers["User-Agent"] = UserAgent;
+                RawHeaders["User-Agent"] = UserAgent;
 
-            Headers["Accept"] = Accept;
-            Headers["Accept-Language"] = Language;
+            RawHeaders["Accept"] = Accept;
+            RawHeaders["Accept-Language"] = Language;
 
             if (EnableEncodingContent)
-                Headers["Accept-Encoding"] = "gzip,deflate";
+                RawHeaders["Accept-Encoding"] = "gzip,deflate";
 
             if (!string.IsNullOrEmpty(Username) && !string.IsNullOrEmpty(Password))
             {
                 string Auth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Username}:{Password}"));
 
-                Headers["Authorization"] = $"Basic {Auth}";
+                RawHeaders["Authorization"] = $"Basic {Auth}";
             }
 
             if (!string.IsNullOrEmpty(Referer))
-                Headers["Referer"] = Referer;
+                RawHeaders["Referer"] = Referer;
 
             if (!string.IsNullOrEmpty(Authorization))
-                Headers["Authorization"] = Authorization;
+                RawHeaders["Authorization"] = Authorization;
 
             if (CharacterSet != null)
             {
                 if (CharacterSet != Encoding.UTF8)
-                    Headers["Accept-Charset"] = $"{CharacterSet.WebName},utf-8";
+                    RawHeaders["Accept-Charset"] = $"{CharacterSet.WebName},utf-8";
                 else
-                    Headers["Accept-Charset"] = "utf-8";
+                    RawHeaders["Accept-Charset"] = "utf-8";
             }
 
             if (Method != HttpMethod.GET)
             {
                 if (ContentLength > 0)
-                    Headers["Content-Type"] = ContentType;
+                    RawHeaders["Content-Type"] = ContentType;
 
-                Headers["Content-Length"] = ContentLength.ToString();
+                RawHeaders["Content-Length"] = ContentLength.ToString();
             }
 
             if (Proxy != null && Proxy.Type == ProxyType.Http)
             {
                 if (KeepAlive)
                 {
-                    Headers["Proxy-Connection"] = "keep-alive";
+                    RawHeaders["Proxy-Connection"] = "keep-alive";
 
                     KeepAliveRequestCount++;
                 }
                 else
                 {
-                    Headers["Proxy-Connection"] = "close";
+                    RawHeaders["Proxy-Connection"] = "close";
                 }
             }
             else
             {
                 if (KeepAlive)
                 {
-                    Headers["Connection"] = "keep-alive";
+                    RawHeaders["Connection"] = "keep-alive";
 
                     KeepAliveRequestCount++;
                 }
                 else
                 {
-                    Headers["Connection"] = "close";
+                    RawHeaders["Connection"] = "close";
                 }
             }
 
@@ -419,7 +421,7 @@ namespace Yove.Http
                 foreach (var Cookie in Cookies)
                     CookieBuilder += $"{Cookie}={Cookies[(string)Cookie]}; ";
 
-                Headers["Cookie"] = CookieBuilder.TrimEnd();
+                RawHeaders["Cookie"] = CookieBuilder.TrimEnd();
             }
 
             StringBuilder Builder = new StringBuilder();
@@ -428,7 +430,7 @@ namespace Yove.Http
                 Builder.AppendFormat($"{Header}: {Headers[(string)Header]}\r\n");
 
             foreach (var Header in TempHeaders)
-                Builder.AppendFormat($"{Header}: {Headers[(string)Header]}\r\n");
+                Builder.AppendFormat($"{Header}: {TempHeaders[(string)Header]}\r\n");
 
             TempHeaders.Clear();
 
@@ -451,7 +453,7 @@ namespace Yove.Http
             return true;
         }
 
-        public void AddTempHeaders(string Key, string Value)
+        public void AddTempHeader(string Key, string Value)
         {
             if (string.IsNullOrEmpty(Key))
                 throw new ArgumentNullException("Key is null or empty.");

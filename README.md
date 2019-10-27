@@ -72,7 +72,7 @@ HttpClient Client = new HttpClient
 
 ```csharp
 Client.Headers.Add("Token", Token);
-Client.AddTempHeaders("Token", Token);
+Client.AddTempHeader("Token", Token);
 
 Client["Token"] = Token;
 
