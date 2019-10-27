@@ -23,6 +23,8 @@ dotnet add package Yove.Http
 ```csharp
 HttpClient Client = new HttpClient();
 
+HttpClient Client = new HttpClient("Base URL");
+
 Client.UserAgent = HttpUtils.GenerateUserAgent(); //Full random (Linux, Windows, Mac, ChromeOS) / (Chrome, Firefox, Opera, Edge, Safari)
 Client.UserAgent = HttpUtils.GenerateUserAgent(HttpSystem.Linux); //Partial random (Linux) / (Chrome, Firefox, Opera, Edge, Safari)
 Client.UserAgent = HttpUtils.GenerateUserAgent(HttpBrowser.Firefox); //Partial random (Linux, Windows, Mac, ChromeOS) / (Firefox)
@@ -48,7 +50,7 @@ HttpClient Client = new HttpClient
 ### Proxy Client
 
 ```csharp
-HttpClient Client = new HttpClient
+HttpClient Client = new HttpClient("Base URL")
 {
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Http),
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks4),

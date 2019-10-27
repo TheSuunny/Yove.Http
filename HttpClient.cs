@@ -35,6 +35,7 @@ namespace Yove.Http
 
         public NameValueCollection Cookies { get; set; }
 
+        public string BaseURL { get; set; }
         public string Username { get; set; }
         public string Password { get; set; }
         public string Language { get; set; } = "en-US,en;q=0.9";
@@ -100,6 +101,11 @@ namespace Yove.Http
         internal HttpMethod Method { get; set; }
         internal HttpContent Content { get; set; }
         internal RemoteCertificateValidationCallback AcceptAllCertificationsCallback = new RemoteCertificateValidationCallback(AcceptAllCertifications);
+
+        public HttpClient(string BaseURL)
+        {
+            this.BaseURL = BaseURL;
+        }
 
         public async Task<HttpResponse> Post(string URL)
         {
@@ -172,6 +178,9 @@ namespace Yove.Http
         {
             if (string.IsNullOrEmpty(URL))
                 throw new ArgumentNullException("URL is null or empty.");
+
+            if ((!URL.StartsWith("https://") && !URL.StartsWith("http://")) && !string.IsNullOrEmpty(BaseURL))
+                URL = $"{BaseURL}{URL}";
 
             this.Method = Method;
             this.Content = Content;
