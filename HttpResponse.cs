@@ -42,7 +42,7 @@ namespace Yove.Http
                 if (NoContent || SourceBody != null)
                     return SourceBody;
 
-                MemoryStream Stream = new MemoryStream((ContentLength == null) ? 0 : (int)ContentLength);
+                MemoryStream Stream = new MemoryStream();
 
                 foreach (var Bytes in GetResponseBody())
                     Stream.Write(Bytes.Value, 0, Bytes.Length);
@@ -202,7 +202,7 @@ namespace Yove.Http
                 if (Headers["Transfer-Encoding"] != null)
                     return ReceiveZipBody(true);
 
-                if (ContentLength != null)
+                if (ContentLength.HasValue)
                     return ReceiveZipBody(false);
 
                 return ReceiveUnsizeBody(GetZipStream(new StreamWrapper(Request.CommonStream, Content)));
@@ -211,7 +211,7 @@ namespace Yove.Http
             if (Headers["Transfer-Encoding"] != null)
                 return ReceiveStandartBody(true);
 
-            if (ContentLength != null)
+            if (ContentLength.HasValue)
                 return ReceiveStandartBody(false);
 
             return ReceiveUnsizeBody(Request.CommonStream);
@@ -253,7 +253,7 @@ namespace Yove.Http
                         {
                             if (StreamWrapper.TotalBytesRead != ContentLength)
                             {
-                                WaitStream().ConfigureAwait(false).GetAwaiter().GetResult();
+                                WaitStream().Wait();
                                 continue;
                             }
 
@@ -292,7 +292,7 @@ namespace Yove.Http
                             {
                                 if (StreamWrapper.TotalBytesRead != BlockLength)
                                 {
-                                    WaitStream().ConfigureAwait(false).GetAwaiter().GetResult();
+                                    WaitStream().Wait();
                                     continue;
                                 }
 
@@ -340,7 +340,7 @@ namespace Yove.Http
                     }
                     else
                     {
-                        WaitStream().ConfigureAwait(false).GetAwaiter().GetResult();
+                        WaitStream().Wait();
                     }
                 }
             }
@@ -389,7 +389,7 @@ namespace Yove.Http
                         }
                         else
                         {
-                            WaitStream().ConfigureAwait(false).GetAwaiter().GetResult();
+                            WaitStream().Wait();
                         }
                     }
                 }
@@ -438,7 +438,7 @@ namespace Yove.Http
                 {
                     if (Bytes == 0)
                     {
-                        WaitStream().ConfigureAwait(false).GetAwaiter().GetResult();
+                        WaitStream().Wait();
                         continue;
                     }
 
@@ -527,7 +527,7 @@ namespace Yove.Http
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
 
-            MemoryStream Stream = new MemoryStream((ContentLength == null) ? 0 : (int)ContentLength);
+            MemoryStream Stream = new MemoryStream();
 
             foreach (var Bytes in GetResponseBody())
                 await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
@@ -540,7 +540,7 @@ namespace Yove.Http
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
 
-            MemoryStream Stream = new MemoryStream((ContentLength == null) ? 0 : (int)ContentLength);
+            MemoryStream Stream = new MemoryStream();
 
             foreach (var Bytes in GetResponseBody())
                 await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
