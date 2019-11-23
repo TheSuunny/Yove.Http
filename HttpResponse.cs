@@ -128,7 +128,7 @@ namespace Yove.Http
             StatusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($"HTTP/{ProtocolVersion} ", HeaderSource, " ")?.Trim());
             ContentType = HttpUtils.Parser("Content-Type: ", HeaderSource, "\n")?.Trim();
             ContentEncoding = HttpUtils.Parser("Content-Encoding: ", HeaderSource, "\n")?.Trim();
-            Location = HttpUtils.Parser("location: ", HeaderSource.ToLower(), "\n")?.Trim();
+            Location = HttpUtils.Parser("Location: ", HeaderSource, "\n")?.Trim();
 
             if (Location != null && Location.StartsWith("/"))
                 Location = $"{Address.Scheme}://{Address.Authority}/{Location.TrimStart('/')}";
@@ -149,7 +149,16 @@ namespace Yove.Http
                 string Charset = HttpUtils.Parser("charset=", HeaderSource, "\n");
 
                 if (Charset != null)
-                    CharacterSet = Encoding.GetEncoding(Charset);
+                {
+                    try
+                    {
+                        CharacterSet = Encoding.GetEncoding(Charset);
+                    }
+                    catch
+                    {
+                        CharacterSet = Encoding.UTF8;
+                    }
+                }
                 else
                     CharacterSet = Request.CharacterSet ?? Encoding.Default;
             }

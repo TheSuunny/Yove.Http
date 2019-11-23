@@ -102,11 +102,18 @@ namespace Yove.Http
         internal HttpContent Content { get; set; }
         internal RemoteCertificateValidationCallback AcceptAllCertificationsCallback = new RemoteCertificateValidationCallback(AcceptAllCertifications);
 
-        public HttpClient() { }
+        public HttpClient()
+        {
+            if (EnableCookies && Cookies == null)
+                Cookies = new NameValueCollection();
+        }
 
         public HttpClient(string BaseURL)
         {
             this.BaseURL = BaseURL;
+
+            if (EnableCookies && Cookies == null)
+                Cookies = new NameValueCollection();
         }
 
         public async Task<HttpResponse> Post(string URL)
@@ -184,11 +191,11 @@ namespace Yove.Http
             if ((!URL.StartsWith("https://") && !URL.StartsWith("http://")) && !string.IsNullOrEmpty(BaseURL))
                 URL = $"{BaseURL.TrimEnd('/')}/{URL}";
 
+            if (!EnableCookies && Cookies != null)
+                Cookies = null;
+
             this.Method = Method;
             this.Content = Content;
-
-            if (EnableCookies && Cookies == null)
-                Cookies = new NameValueCollection();
 
             if (CheckKeepAlive() || Address.Host != new UriBuilder(URL).Host)
             {
