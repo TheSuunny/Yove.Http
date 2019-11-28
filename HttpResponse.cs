@@ -24,7 +24,7 @@ namespace Yove.Http
 
         public long? ContentLength { get; private set; }
         public int KeepAliveTimeout { get; private set; }
-        public int KeepAliveMax { get; private set; }
+        public int KeepAliveMax { get; private set; } = 100;
 
         public bool NoContent { get; private set; }
 
@@ -138,8 +138,15 @@ namespace Yove.Http
 
             if (HeaderSource.Contains("Keep-Alive"))
             {
-                KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("Keep-Alive: timeout=", HeaderSource, ",")?.Trim()) * 1000;
-                KeepAliveMax = Convert.ToInt32(HttpUtils.Parser($"Keep-Alive: timeout={KeepAliveTimeout}, max=", HeaderSource, "\n")?.Trim());
+                if (HeaderSource.Contains(", max="))
+                {
+                    KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("Keep-Alive: timeout=", HeaderSource, ",")?.Trim()) * 1000;
+                    KeepAliveMax = Convert.ToInt32(HttpUtils.Parser($"Keep-Alive: timeout={KeepAliveTimeout}, max=", HeaderSource, "\n")?.Trim());
+                }
+                else
+                {
+                    KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("Keep-Alive: timeout=", HeaderSource, "\n")?.Trim()) * 1000;
+                }
             }
 
             if (ContentType != null)
