@@ -224,6 +224,9 @@ namespace Yove.Http
             {
                 Dispose();
 
+                if (Response != null && Response.Location != null)
+                    await Task.Delay(1000);
+
                 this.Address = new UriBuilder(URL).Uri;
 
                 try
@@ -270,7 +273,8 @@ namespace Yove.Http
 
                             new Task(async () =>
                             {
-                                while ((int)(((double)SentBytes / (double)TotalSentBytes) * 100.0) != 100)
+                                while ((int)(((double)SentBytes / (double)TotalSentBytes) * 100.0) != 100
+                                    && HasConnection)
                                 {
                                     await Task.Delay(1000);
 
@@ -294,7 +298,8 @@ namespace Yove.Http
 
                             new Task(async () =>
                             {
-                                while ((int)(((double)ReceivedBytes / (double)TotalReceivedBytes) * 100.0) != 100)
+                                while ((int)(((double)ReceivedBytes / (double)TotalReceivedBytes) * 100.0) != 100
+                                    && HasConnection)
                                 {
                                     await Task.Delay(1000);
 
