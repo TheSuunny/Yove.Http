@@ -67,8 +67,32 @@ HttpClient Client = new HttpClient("Base URL")
 | `await Client.GetBytes("http://example.com/");`                  | Makes a GET request and returns a response byte[]             |
 | `await Client.GetStream("http://example.com/");`                 | Makes a GET request and returns a response MemoryStream       |
 | `await Client.GetString("http://example.com/");`                 | Makes a GET request and returns a response ToString           |
+| `await Client.GetJson("http://example.com/");`                   | Makes a GET request and returns a response JToken [JSON]      |
+| `await Client.GetToFile("http://example.com/", "Save path");`    | Makes a GET request and save file                             |
 | `await Client.Post("http://example.com/", "id=0&message=test");` | Simple POST request, supports up to 5 reload                  |
 | `await Client.Raw(HttpMethod.DELETE, "http://example.com/");`    | Raw method, can accept any parameters included in HttpContent |
+
+### Example Request
+
+```csharp
+JToken Get = await Client.GetJson("https://api.ipify.org/?format=json");
+
+Console.WriteLine(Get["ip"]);
+```
+
+### Events
+
+```csharp
+Client.DownloadProgressChanged += (s, e) =>
+{
+    Console.WriteLine($"{e.Received} / {e.Total} | {e.ProgressPercentage} | {e.Speed.MegaBytes} MB/s | {e.Speed.GigaBytes} GB/s");
+};
+
+Client.UploadProgressChanged += (s, e) =>
+{
+    Console.WriteLine($"{e.Sent} / {e.Total} | {e.ProgressPercentage} | {e.Speed.MegaBytes} MB/s | {e.Speed.GigaBytes} GB/s");
+};
+```
 
 ### Add header / Read header
 
@@ -110,6 +134,8 @@ MemoryStream Stream = await Response.ToMemoryStream(); //Return the response in 
 byte[] Bytes = await Response.ToBytes(); //Return the response in byte[]
 
 string SavePath = await Response.ToFile("Path to save", "Filename"); //If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
+
+string Username = (string)Response.Json["users"][0]["username"]; //Return JToken object [JSON]
 ```
 
 ---
@@ -141,7 +167,7 @@ Supports both default requests and WebDAV
 
 - [x] - Proxy Client
 - [x] - Keep Alive
-- [ ] - Json Parser
+- [x] - Json Parser
 
 ---
 

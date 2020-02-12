@@ -25,10 +25,10 @@ namespace Yove.Http.Proxy
         public ProxyClient(string Host, int Port, ProxyType Type)
         {
             if (string.IsNullOrEmpty(Host))
-                throw new ArgumentNullException("Host is null or empty");
+                throw new ArgumentNullException("Host is null or empty.");
 
             if (Port < 0 || Port > 65535)
-                throw new ArgumentNullException("Port goes beyond < 0 or > 65535");
+                throw new ArgumentNullException("Port goes beyond < 0 or > 65535.");
 
             this.Host = Host;
             this.Port = Port;
@@ -38,13 +38,13 @@ namespace Yove.Http.Proxy
         public ProxyClient(string Proxy, ProxyType Type)
         {
             if (string.IsNullOrEmpty(Proxy) || !Proxy.Contains(":"))
-                throw new ArgumentNullException("Proxy is null or empty or invalid type");
+                throw new ArgumentNullException("Proxy is null or empty or invalid type.");
 
             string Host = Proxy.Split(':')[0];
             int Port = Convert.ToInt32(Proxy.Split(':')[1]);
 
             if (Port < 0 || Port > 65535)
-                throw new ArgumentNullException("Port goes beyond < 0 or > 65535");
+                throw new ArgumentNullException("Port goes beyond < 0 or > 65535.");
 
             this.Host = Host;
             this.Port = Port;
@@ -54,10 +54,10 @@ namespace Yove.Http.Proxy
         internal async Task<TcpClient> CreateConnection(string DestinationHost, int DestinationPort)
         {
             if (string.IsNullOrEmpty(Host))
-                throw new ArgumentNullException("Host is null or empty");
+                throw new ArgumentNullException("Host is null or empty.");
 
             if (Port < 0 || Port > 65535)
-                throw new ArgumentNullException("Port goes beyond < 0 or > 65535");
+                throw new ArgumentNullException("Port goes beyond < 0 or > 65535.");
 
             TcpClient TcpClient = new TcpClient();
 
@@ -112,7 +112,7 @@ namespace Yove.Http.Proxy
                 case ProxyType.Socks5:
                     return await SendSocks5(Stream, DestinationHost, DestinationPort).ConfigureAwait(false);
                 default:
-                    throw new ProxyException("Unsupported proxy type");
+                    throw new ProxyException("Unsupported proxy type.");
             }
         }
 
@@ -139,7 +139,7 @@ namespace Yove.Http.Proxy
             }
 
             if (Response.Length == 0)
-                new Exception("Received empty response");
+                new Exception("Received empty response.");
 
             HttpStatusCode StatusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($" ", Response.ToString(), " ")?.Trim());
 

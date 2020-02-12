@@ -9,6 +9,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Yove.Http.Proxy;
+using Yove.Http.Events;
+using Newtonsoft.Json.Linq;
 
 namespace Yove.Http
 {
@@ -102,6 +104,17 @@ namespace Yove.Http
         internal HttpContent Content { get; set; }
         internal RemoteCertificateValidationCallback AcceptAllCertificationsCallback = new RemoteCertificateValidationCallback(AcceptAllCertifications);
 
+        private long SentBytes { get; set; }
+        private long TotalSentBytes { get; set; }
+
+        private long ReceivedBytes { get; set; }
+        private long TotalReceivedBytes { get; set; }
+
+        private bool IsReceivedHeader { get; set; }
+
+        public EventHandler<UploadEvent> UploadProgressChanged { get; set; }
+        public EventHandler<DownloadEvent> DownloadProgressChanged { get; set; }
+
         public HttpClient()
         {
             if (EnableCookies && Cookies == null)
@@ -162,6 +175,13 @@ namespace Yove.Http
             return Response.Body;
         }
 
+        public async Task<JToken> GetJson(string URL)
+        {
+            HttpResponse Response = await Raw(HttpMethod.GET, URL).ConfigureAwait(false);
+
+            return JToken.Parse(Response.Body);
+        }
+
         public async Task<byte[]> GetBytes(string URL)
         {
             HttpResponse Response = await Raw(HttpMethod.GET, URL).ConfigureAwait(false);
@@ -197,6 +217,9 @@ namespace Yove.Http
             this.Method = Method;
             this.Content = Content;
 
+            ReceivedBytes = 0;
+            SentBytes = 0;
+
             if (CheckKeepAlive() || Address.Host != new UriBuilder(URL).Host)
             {
                 Dispose();
@@ -230,6 +253,64 @@ namespace Yove.Http
                     }
 
                     HasConnection = true;
+
+                    if (DownloadProgressChanged != null || UploadProgressChanged != null)
+                    {
+                        EventWraperStream WraperStream = new EventWraperStream(CommonStream, Connection.SendBufferSize);
+
+                        if (UploadProgressChanged != null)
+                        {
+                            long Speed = 0;
+
+                            WraperStream.WriteBytesCallback = (e) =>
+                            {
+                                Speed += e;
+                                SentBytes += e;
+                            };
+
+                            new Task(async () =>
+                            {
+                                while ((int)(((double)SentBytes / (double)TotalSentBytes) * 100.0) != 100)
+                                {
+                                    await Task.Delay(1000);
+
+                                    if (UploadProgressChanged != null)
+                                        UploadProgressChanged(this, new UploadEvent(Speed, SentBytes, TotalSentBytes));
+
+                                    Speed = 0;
+                                }
+                            }).Start();
+                        }
+
+                        if (DownloadProgressChanged != null)
+                        {
+                            long Speed = 0;
+
+                            WraperStream.ReadBytesCallback = (e) =>
+                            {
+                                Speed += e;
+                                ReceivedBytes += e;
+                            };
+
+                            new Task(async () =>
+                            {
+                                while ((int)(((double)ReceivedBytes / (double)TotalReceivedBytes) * 100.0) != 100)
+                                {
+                                    await Task.Delay(1000);
+
+                                    if (IsReceivedHeader)
+                                    {
+                                        if (DownloadProgressChanged != null)
+                                            DownloadProgressChanged(this, new DownloadEvent(Speed, ReceivedBytes, TotalReceivedBytes));
+                                    }
+
+                                    Speed = 0;
+                                }
+                            }).Start();
+                        }
+
+                        CommonStream = WraperStream;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -258,6 +339,9 @@ namespace Yove.Http
                 byte[] StartingLineBytes = Encoding.ASCII.GetBytes($"{Method} {Address.PathAndQuery} HTTP/1.1\r\n");
                 byte[] HeadersBytes = Encoding.ASCII.GetBytes(GenerateHeaders(Method, ContentLength, ContentType));
 
+                SentBytes = 0;
+                TotalSentBytes = StartingLineBytes.Length + HeadersBytes.Length + ContentLength;
+
                 await CommonStream.WriteAsync(StartingLineBytes, 0, StartingLineBytes.Length).ConfigureAwait(false);
                 await CommonStream.WriteAsync(HeadersBytes, 0, HeadersBytes.Length).ConfigureAwait(false);
 
@@ -274,7 +358,12 @@ namespace Yove.Http
 
             try
             {
+                IsReceivedHeader = false;
+
                 Response = new HttpResponse(this);
+
+                TotalReceivedBytes = Response.ResponseLength;
+                IsReceivedHeader = true;
             }
             catch (Exception ex)
             {

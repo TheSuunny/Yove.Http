@@ -1,8 +1,5 @@
 namespace Yove.Http
 {
-    /// <summary>
-    /// Предоставляет все доступные методы для запросов / Provides all available methods for request
-    /// </summary>
     public enum HttpMethod
     {
         GET,

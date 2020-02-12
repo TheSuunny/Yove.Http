@@ -35,7 +35,7 @@ namespace Yove.Http
             get
             {
                 if (Elements.Count == 0)
-                    throw new ObjectDisposedException("Content disposed or empty");
+                    throw new ObjectDisposedException("Content disposed or empty.");
 
                 long Length = 0;
 
@@ -68,7 +68,7 @@ namespace Yove.Http
         public MultipartContent(string Boundary)
         {
             if (string.IsNullOrEmpty(Boundary))
-                throw new ArgumentNullException("Boundary is null or empty");
+                throw new ArgumentNullException("Boundary is null or empty.");
 
             this.Boundary = Boundary;
             this.ContentType = $"multipart/form-data; boundary={Boundary}";
@@ -77,10 +77,10 @@ namespace Yove.Http
         public void Add(string Name, HttpContent Content)
         {
             if (string.IsNullOrEmpty(Name))
-                throw new ArgumentNullException("Name is null or empty");
+                throw new ArgumentNullException("Name is null or empty.");
 
             if (Content == null)
-                throw new ArgumentNullException("Content is null");
+                throw new ArgumentNullException("Content is null.");
 
             Elements.Add(new Element
             {
@@ -92,13 +92,13 @@ namespace Yove.Http
         public void Add(string Name, HttpContent Content, string Filename)
         {
             if (string.IsNullOrEmpty(Name))
-                throw new ArgumentNullException("Name is null or empty");
+                throw new ArgumentNullException("Name is null or empty.");
 
             if (string.IsNullOrEmpty(Filename))
-                throw new ArgumentNullException("Filename is null or empty");
+                throw new ArgumentNullException("Filename is null or empty.");
 
             if (Content == null)
-                throw new ArgumentNullException("Content is null");
+                throw new ArgumentNullException("Content is null.");
 
             Content.ContentType = "multipart/form-data";
 
@@ -113,16 +113,16 @@ namespace Yove.Http
         public void Add(string Name, string ContentType, HttpContent Content, string Filename)
         {
             if (string.IsNullOrEmpty(Name))
-                throw new ArgumentNullException("Name is null or empty");
+                throw new ArgumentNullException("Name is null or empty.");
 
             if (string.IsNullOrEmpty(Filename))
-                throw new ArgumentNullException("Filename is null or empty");
+                throw new ArgumentNullException("Filename is null or empty.");
 
             if (string.IsNullOrEmpty(ContentType))
-                throw new ArgumentNullException("ContentType is null or empty");
+                throw new ArgumentNullException("ContentType is null or empty.");
 
             if (Content == null)
-                throw new ArgumentNullException("Content is null");
+                throw new ArgumentNullException("Content is null.");
 
             Content.ContentType = ContentType;
 
@@ -137,18 +137,18 @@ namespace Yove.Http
         public void Add(string Name, FileContent Content, string Filename = null)
         {
             if (string.IsNullOrEmpty(Name))
-                throw new ArgumentNullException("Name is null or empty");
+                throw new ArgumentNullException("Name is null or empty.");
 
             if (Filename == null)
             {
                 Filename = Path.GetFileName(Content.Path);
 
                 if (string.IsNullOrEmpty(Filename))
-                    throw new ArgumentNullException("Path is null or empty");
+                    throw new ArgumentNullException("Path is null or empty.");
             }
 
             if (Content == null)
-                throw new ArgumentNullException("Content is null");
+                throw new ArgumentNullException("Content is null.");
 
             Content.ContentType = "multipart/form-data";
 
@@ -163,19 +163,19 @@ namespace Yove.Http
         public void Add(string Name, string ContentType, FileContent Content, string Filename = null)
         {
             if (string.IsNullOrEmpty(Name))
-                throw new ArgumentNullException("Name is null or empty");
+                throw new ArgumentNullException("Name is null or empty.");
 
             if (Filename == null)
             {
                 if (string.IsNullOrEmpty(Filename))
-                    throw new ArgumentNullException("Path is null or empty");
+                    throw new ArgumentNullException("Path is null or empty.");
             }
 
             if (string.IsNullOrEmpty(ContentType))
-                throw new ArgumentNullException("ContentType is null or empty");
+                throw new ArgumentNullException("ContentType is null or empty.");
 
             if (Content == null)
-                throw new ArgumentNullException("Content is null");
+                throw new ArgumentNullException("Content is null.");
 
             Content.ContentType = ContentType;
 
@@ -190,10 +190,10 @@ namespace Yove.Http
         public override async Task WriteAsync(Stream CommonStream)
         {
             if (Elements.Count == 0)
-                throw new ObjectDisposedException("Content disposed or empty");
+                throw new ObjectDisposedException("Content disposed or empty.");
 
             if (CommonStream == null)
-                throw new ArgumentNullException("CommonStream is null");
+                throw new ArgumentNullException("CommonStream is null.");
 
             byte[] LineBytes = Encoding.ASCII.GetBytes("\r\n");
             byte[] BoundaryBytes = Encoding.ASCII.GetBytes($"--{Boundary}\r\n");

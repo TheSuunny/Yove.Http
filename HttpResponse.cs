@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 
 namespace Yove.Http
 {
@@ -23,6 +24,8 @@ namespace Yove.Http
         public string Location { get; private set; }
 
         public long? ContentLength { get; private set; }
+        internal long ResponseLength { get; private set; }
+
         public int KeepAliveTimeout { get; private set; }
         public int KeepAliveMax { get; private set; } = 100;
 
@@ -42,14 +45,37 @@ namespace Yove.Http
                 if (NoContent || SourceBody != null)
                     return SourceBody;
 
-                MemoryStream Stream = new MemoryStream();
+                using (MemoryStream Stream = new MemoryStream())
+                {
+                    foreach (var Bytes in GetResponseBody())
+                        Stream.Write(Bytes.Value, 0, Bytes.Length);
 
-                foreach (var Bytes in GetResponseBody())
-                    Stream.Write(Bytes.Value, 0, Bytes.Length);
+                    SourceBody = CharacterSet.GetString(Stream.GetBuffer(), 0, (int)Stream.Length);
 
-                SourceBody = CharacterSet.GetString(Stream.GetBuffer(), 0, (int)Stream.Length);
+                    return SourceBody;
+                }
+            }
+        }
 
-                return SourceBody;
+        public JToken Json
+        {
+            get
+            {
+                if (NoContent)
+                    throw new NullReferenceException("Content not found.");
+
+                if (SourceBody == null)
+                {
+                    using (MemoryStream Stream = new MemoryStream())
+                    {
+                        foreach (var Bytes in GetResponseBody())
+                            Stream.Write(Bytes.Value, 0, Bytes.Length);
+
+                        SourceBody = CharacterSet.GetString(Stream.GetBuffer(), 0, (int)Stream.Length);
+                    }
+                }
+
+                return JToken.Parse(SourceBody);
             }
         }
 
@@ -209,6 +235,8 @@ namespace Yove.Http
             {
                 NoContent = true;
             }
+
+            ResponseLength = Content.Position + ContentLength.Value;
         }
 
         private IEnumerable<BytesWraper> GetResponseBody()
@@ -499,7 +527,7 @@ namespace Yove.Http
         public string Parser(string Start, string End)
         {
             if (string.IsNullOrEmpty(Start) || string.IsNullOrEmpty(End))
-                throw new ArgumentNullException("Start or End is null or empty");
+                throw new ArgumentNullException("Start or End is null or empty.");
 
             return HttpUtils.Parser(Start, Body, End);
         }
@@ -510,20 +538,22 @@ namespace Yove.Http
                 throw new NullReferenceException("Content not found.");
 
             if (string.IsNullOrEmpty(LocalPath))
-                throw new ArgumentNullException("Path is null or empty");
+                throw new ArgumentNullException("Path is null or empty.");
 
             string FullPath = string.Empty;
 
             if (Filename == null)
             {
                 if (Headers["Content-Disposition"] != null)
+                {
                     FullPath = $"{LocalPath.TrimEnd('/')}/{HttpUtils.Parser("filename=\"", Headers["Content-Disposition"], "\"")}";
+                }
                 else
                 {
                     Filename = Path.GetFileName(new Uri(Address.AbsoluteUri).LocalPath);
 
                     if (string.IsNullOrEmpty(Filename))
-                        throw new ArgumentNullException("Could not find filename");
+                        throw new ArgumentNullException("Could not find filename.");
                 }
             }
 
@@ -543,12 +573,13 @@ namespace Yove.Http
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
 
-            MemoryStream Stream = new MemoryStream();
+            using (MemoryStream Stream = new MemoryStream())
+            {
+                foreach (BytesWraper Bytes in GetResponseBody())
+                    await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
 
-            foreach (var Bytes in GetResponseBody())
-                await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
-
-            return Stream.ToArray();
+                return Stream.ToArray();
+            }
         }
 
         public async Task<MemoryStream> ToMemoryStream()
@@ -556,14 +587,15 @@ namespace Yove.Http
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
 
-            MemoryStream Stream = new MemoryStream();
+            using (MemoryStream Stream = new MemoryStream())
+            {
+                foreach (BytesWraper Bytes in GetResponseBody())
+                    await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
 
-            foreach (var Bytes in GetResponseBody())
-                await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
+                Stream.Position = 0;
 
-            Stream.Position = 0;
-
-            return Stream;
+                return Stream;
+            }
         }
 
         private sealed class BytesWraper

@@ -15,7 +15,7 @@ namespace Yove.Http
             get
             {
                 if (Content == null)
-                    throw new ObjectDisposedException("Content disposed or empty");
+                    throw new ObjectDisposedException("Content disposed or empty.");
 
                 return Content.Length;
             }
@@ -26,7 +26,7 @@ namespace Yove.Http
         public StreamContent(Stream Content, int BufferSize = 32768)
         {
             if (Content == null || !Content.CanRead || !Content.CanSeek)
-                throw new ArgumentNullException("Parameters is empty or invalid value");
+                throw new ArgumentNullException("Parameters is empty or invalid value.");
 
             this.Content = Content;
             this.BufferSize = BufferSize;
@@ -35,10 +35,10 @@ namespace Yove.Http
         public override async Task WriteAsync(Stream CommonStream)
         {
             if (Content == null)
-                throw new ObjectDisposedException("Content disposed or empty");
+                throw new ObjectDisposedException("Content disposed or empty.");
 
             if (CommonStream == null)
-                throw new ArgumentNullException("Stream is empty");
+                throw new ArgumentNullException("Stream is empty.");
 
             Content.Position = 0;
 

@@ -1,10 +1,5 @@
 namespace Yove.Http
 {
-    /// <summary>
-    /// Предоставляет все возможные коды ответов / Provides all possible response codes
-    ///
-    /// https://ru.wikipedia.org/wiki/Список_кодов_состояния_HTTP
-    /// </summary>
     public enum HttpStatusCode
     {
         None = 0,

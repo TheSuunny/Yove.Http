@@ -10,7 +10,7 @@ namespace Yove.Http
         public FileContent(string Path, int BufferSize = 32768)
         {
             if (string.IsNullOrEmpty(Path))
-                throw new ArgumentNullException("Path is null or empty");
+                throw new ArgumentNullException("Path is null or empty.");
 
             this.Content = new FileStream(Path, FileMode.Open, FileAccess.Read);
             this.BufferSize = BufferSize;
@@ -20,7 +20,7 @@ namespace Yove.Http
         public FileContent(Stream Stream, int BufferSize = 32768)
         {
             if (Stream == null)
-                throw new ArgumentNullException("Stream is null");
+                throw new ArgumentNullException("Stream is null.");
 
             this.Content = Stream;
             this.BufferSize = BufferSize;

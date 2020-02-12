@@ -10,7 +10,7 @@ namespace Yove.Http
         public StringContent(string Content, Encoding Encoding)
         {
             if (Content == null || Encoding == null)
-                throw new ArgumentNullException("Content or Encoding is null");
+                throw new ArgumentNullException("Content or Encoding is null.");
 
             this.Content = Encoding.GetBytes(Content);
             this.Offset = 0;

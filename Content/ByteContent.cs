@@ -26,7 +26,7 @@ namespace Yove.Http
         public ByteContent(byte[] Content, int Offset, int Count)
         {
             if (Content == null || Offset < 0 || Count < 0 || Offset > Content.Length || Count > (Content.Length - Offset))
-                throw new ArgumentNullException("Parameters is empty or invalid value");
+                throw new ArgumentNullException("Parameters is empty or invalid value.");
 
             this.Content = Content;
             this.Offset = Offset;
@@ -36,7 +36,7 @@ namespace Yove.Http
         public override async Task WriteAsync(Stream CommonStream)
         {
             if (CommonStream == null)
-                throw new ArgumentNullException("Stream is empty");
+                throw new ArgumentNullException("Stream is empty.");
 
             await CommonStream.WriteAsync(Content, Offset, Count).ConfigureAwait(false);
         }
