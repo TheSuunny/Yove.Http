@@ -236,7 +236,7 @@ namespace Yove.Http
                 NoContent = true;
             }
 
-            ResponseLength = Content.Position + ContentLength.Value;
+            ResponseLength = Content.Position + ((ContentLength.HasValue) ? ContentLength.Value : 0);
         }
 
         private IEnumerable<BytesWraper> GetResponseBody()
