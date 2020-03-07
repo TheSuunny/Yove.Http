@@ -587,15 +587,14 @@ namespace Yove.Http
             if (NoContent)
                 throw new NullReferenceException("Content not found.");
 
-            using (MemoryStream Stream = new MemoryStream())
-            {
-                foreach (BytesWraper Bytes in GetResponseBody())
-                    await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
+            MemoryStream Stream = new MemoryStream();
 
-                Stream.Position = 0;
+            foreach (BytesWraper Bytes in GetResponseBody())
+                await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
 
-                return Stream;
-            }
+            Stream.Position = 0;
+
+            return Stream;
         }
 
         private sealed class BytesWraper
