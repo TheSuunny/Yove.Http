@@ -20,17 +20,17 @@ namespace Yove.Http
         {
             get
             {
-                return proxy;
+                return ProxyBase;
             }
             set
             {
-                proxy = value;
+                ProxyBase = value;
 
                 HasConnection = false;
             }
         }
 
-        private ProxyClient proxy { get; set; }
+        private ProxyClient ProxyBase { get; set; }
 
         public NameValueCollection Headers = new NameValueCollection();
         public NameValueCollection TempHeaders = new NameValueCollection();
@@ -111,6 +111,7 @@ namespace Yove.Http
         private long TotalReceivedBytes { get; set; }
 
         private bool IsReceivedHeader { get; set; }
+        private bool IsDispose { get; set; }
 
         public EventHandler<UploadEvent> UploadProgressChanged { get; set; }
         public EventHandler<DownloadEvent> DownloadProgressChanged { get; set; }
@@ -205,6 +206,9 @@ namespace Yove.Http
 
         public async Task<HttpResponse> Raw(HttpMethod Method, string URL, HttpContent Content = null)
         {
+            if (IsDispose)
+                throw new ObjectDisposedException("Object dispose.");
+
             if (string.IsNullOrEmpty(URL))
                 throw new ArgumentNullException("URL is null or empty.");
 
@@ -222,7 +226,7 @@ namespace Yove.Http
 
             if (CheckKeepAlive() || Address.Host != new UriBuilder(URL).Host)
             {
-                Dispose();
+                Close();
 
                 if (Response != null && Response.Location != null)
                     await Task.Delay(1000);
@@ -556,7 +560,7 @@ namespace Yove.Http
 
         private async Task<HttpResponse> ReconnectFail()
         {
-            Dispose();
+            Close();
 
             ReconnectCount++;
 
@@ -586,7 +590,7 @@ namespace Yove.Http
             return this.MemberwiseClone();
         }
 
-        public void Dispose()
+        public void Close()
         {
             if (Connection != null)
             {
@@ -598,6 +602,13 @@ namespace Yove.Http
                 KeepAliveRequestCount = 0;
                 HasConnection = false;
             }
+        }
+
+        public void Dispose()
+        {
+            Close();
+
+            IsDispose = true;
         }
     }
 }
