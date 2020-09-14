@@ -187,7 +187,7 @@ namespace Yove.Http
             });
         }
 
-        public override async Task WriteAsync(Stream CommonStream)
+        public override void Write(Stream CommonStream)
         {
             if (Elements.Count == 0)
                 throw new ObjectDisposedException("Content disposed or empty.");
@@ -200,7 +200,7 @@ namespace Yove.Http
 
             foreach (Element Item in Elements)
             {
-                await CommonStream.WriteAsync(BoundaryBytes, 0, BoundaryBytes.Length).ConfigureAwait(false);
+                CommonStream.Write(BoundaryBytes, 0, BoundaryBytes.Length);
 
                 string Field = string.Empty;
 
@@ -211,14 +211,14 @@ namespace Yove.Http
 
                 byte[] FieldBytes = Encoding.ASCII.GetBytes(Field);
 
-                await CommonStream.WriteAsync(FieldBytes, 0, FieldBytes.Length).ConfigureAwait(false);
-                await Item.Content.WriteAsync(CommonStream).ConfigureAwait(false);
-                await CommonStream.WriteAsync(LineBytes, 0, LineBytes.Length).ConfigureAwait(false);
+                CommonStream.Write(FieldBytes, 0, FieldBytes.Length);
+                Item.Content.Write(CommonStream);
+                CommonStream.Write(LineBytes, 0, LineBytes.Length);
             }
 
             BoundaryBytes = Encoding.ASCII.GetBytes($"--{Boundary}--\r\n");
 
-            await CommonStream.WriteAsync(BoundaryBytes, 0, BoundaryBytes.Length).ConfigureAwait(false);
+            CommonStream.Write(BoundaryBytes, 0, BoundaryBytes.Length);
         }
 
         public override void Dispose()

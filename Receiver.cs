@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Yove.Http
 {
@@ -26,7 +25,7 @@ namespace Yove.Http
             this.Stream = Stream;
         }
 
-        public async Task<string> GetAsync(bool ReadLine)
+        public string Get(bool ReadLine)
         {
             int CurrentPosition = 0;
 
@@ -35,7 +34,7 @@ namespace Yove.Http
                 if (Position == Length)
                 {
                     Position = 0;
-                    Length = await Stream.ReadAsync(Buffer, 0, Buffer.Length).ConfigureAwait(false);
+                    Length = Stream.Read(Buffer, 0, Buffer.Length);
 
                     if (Length == 0)
                         break;
@@ -45,15 +44,10 @@ namespace Yove.Http
 
                 TemporaryBuffer[CurrentPosition++] = Symbol;
 
-                if (!ReadLine)
+                if ((!ReadLine && Encoding.ASCII.GetString(TemporaryBuffer, 0, CurrentPosition).EndsWith("\r\n\r\n")) ||
+                    (ReadLine && Symbol == (byte)'\n'))
                 {
-                    if (Encoding.ASCII.GetString(TemporaryBuffer, 0, CurrentPosition).EndsWith("\r\n\r\n"))
-                        break;
-                }
-                else
-                {
-                    if (Symbol == (byte)'\n')
-                        break;
+                    break;
                 }
 
                 if (CurrentPosition == TemporaryBuffer.Length)

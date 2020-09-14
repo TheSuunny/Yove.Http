@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Threading.Tasks;
 
 namespace Yove.Http
 {
@@ -33,12 +32,12 @@ namespace Yove.Http
             this.Count = Count;
         }
 
-        public override async Task WriteAsync(Stream CommonStream)
+        public override void Write(Stream CommonStream)
         {
             if (CommonStream == null)
                 throw new ArgumentNullException("Stream is empty.");
 
-            await CommonStream.WriteAsync(Content, Offset, Count).ConfigureAwait(false);
+            CommonStream.Write(Content, Offset, Count);
         }
 
         public override void Dispose() { }

@@ -7,9 +7,11 @@ using System.IO.Compression;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using Fody;
 
 namespace Yove.Http
 {
+    [ConfigureAwait(false)]
     public class HttpResponse
     {
         private HttpClient Request { get; set; }
@@ -47,7 +49,7 @@ namespace Yove.Http
 
                 using (MemoryStream Stream = new MemoryStream())
                 {
-                    foreach (var Bytes in GetResponseBody())
+                    foreach (BytesWraper Bytes in GetResponseBody())
                         Stream.Write(Bytes.Value, 0, Bytes.Length);
 
                     SourceBody = CharacterSet.GetString(Stream.GetBuffer(), 0, (int)Stream.Length);
@@ -64,18 +66,7 @@ namespace Yove.Http
                 if (NoContent)
                     throw new NullReferenceException("Content not found.");
 
-                if (SourceBody == null)
-                {
-                    using (MemoryStream Stream = new MemoryStream())
-                    {
-                        foreach (var Bytes in GetResponseBody())
-                            Stream.Write(Bytes.Value, 0, Bytes.Length);
-
-                        SourceBody = CharacterSet.GetString(Stream.GetBuffer(), 0, (int)Stream.Length);
-                    }
-                }
-
-                return JToken.Parse(SourceBody);
+                return JToken.Parse(Body);
             }
         }
 
@@ -142,7 +133,7 @@ namespace Yove.Http
 
             Content = new Receiver(Request.Connection.ReceiveBufferSize, Request.CommonStream);
 
-            string HeaderSource = Content.GetAsync(false).ConfigureAwait(false).GetAwaiter().GetResult().Replace("\r", null);
+            string HeaderSource = Content.Get(false).Replace("\r", null);
 
             if (string.IsNullOrEmpty(HeaderSource))
             {
@@ -179,7 +170,7 @@ namespace Yove.Http
             {
                 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-                string Charset = HttpUtils.Parser("charset=", HeaderSource, "\n");
+                string Charset = HttpUtils.Parser("charset=", HeaderSource, "\n")?.Replace(@"\", "").Replace("\"", "");
 
                 if (Charset != null)
                 {
@@ -193,7 +184,9 @@ namespace Yove.Http
                     }
                 }
                 else
+                {
                     CharacterSet = Request.CharacterSet ?? Encoding.Default;
+                }
             }
             else
             {
@@ -249,7 +242,11 @@ namespace Yove.Http
                 if (ContentLength.HasValue)
                     return ReceiveZipBody(false);
 
-                return ReceiveUnsizeBody(GetZipStream(new StreamWrapper(Request.CommonStream, Content)));
+                using (StreamWrapper StreamWrapper = new StreamWrapper(Request.CommonStream, Content))
+                {
+                    using (Stream Stream = GetZipStream(StreamWrapper))
+                        return ReceiveUnsizeBody(Stream);
+                }
             }
 
             if (Headers["Transfer-Encoding"] != null)
@@ -277,75 +274,75 @@ namespace Yove.Http
         private IEnumerable<BytesWraper> ReceiveZipBody(bool Chunked)
         {
             BytesWraper BytesWraper = new BytesWraper();
-            StreamWrapper StreamWrapper = new StreamWrapper(Request.CommonStream, Content);
 
-            using (Stream Stream = GetZipStream(StreamWrapper))
+            using (StreamWrapper StreamWrapper = new StreamWrapper(Request.CommonStream, Content))
             {
-                int BufferSize = Request.Connection.ReceiveBufferSize;
-
-                byte[] Buffer = new byte[BufferSize];
-
-                BytesWraper.Value = Buffer;
-
-                while (true)
+                using (Stream Stream = GetZipStream(StreamWrapper))
                 {
-                    if (!Chunked)
+                    byte[] Buffer = new byte[Request.Connection.ReceiveBufferSize];
+
+                    BytesWraper.Value = Buffer;
+
+                    while (StreamWrapper.TotalBytesRead != ContentLength)
                     {
-                        int Bytes = Stream.Read(Buffer, 0, BufferSize);
-
-                        if (Bytes == 0)
+                        if (!Chunked)
                         {
-                            if (StreamWrapper.TotalBytesRead != ContentLength)
-                            {
-                                WaitStream().Wait();
-                                continue;
-                            }
-
-                            yield break;
-                        }
-
-                        BytesWraper.Length = Bytes;
-
-                        yield return BytesWraper;
-                    }
-                    else
-                    {
-                        string GetLine = Content.GetAsync(true).ConfigureAwait(false).GetAwaiter().GetResult();
-
-                        if (GetLine == "\r\n")
-                            continue;
-
-                        GetLine = GetLine.Trim(' ', '\r', '\n');
-
-                        if (GetLine == string.Empty)
-                            yield break;
-
-                        int BlockLength = Convert.ToInt32(GetLine, 16);
-
-                        if (BlockLength == 0)
-                            yield break;
-
-                        StreamWrapper.TotalBytesRead = 0;
-                        StreamWrapper.LimitBytesRead = BlockLength;
-
-                        while (true)
-                        {
-                            int Bytes = Stream.Read(Buffer, 0, BufferSize);
+                            int Bytes = Stream.ReadAsync(Buffer, 0, Buffer.Length).GetAwaiter().GetResult();
 
                             if (Bytes == 0)
                             {
-                                if (StreamWrapper.TotalBytesRead != BlockLength)
+                                if (StreamWrapper.TotalBytesRead != ContentLength)
                                 {
                                     WaitStream().Wait();
                                     continue;
                                 }
 
-                                break;
+                                yield break;
                             }
 
                             BytesWraper.Length = Bytes;
 
                             yield return BytesWraper;
+                        }
+                        else
+                        {
+                            string GetLine = Content.Get(true);
+
+                            if (GetLine == "\r\n")
+                                continue;
+
+                            GetLine = GetLine.Trim(' ', '\r', '\n');
+
+                            if (GetLine == string.Empty)
+                                yield break;
+
+                            int BlockLength = Convert.ToInt32(GetLine, 16);
+
+                            if (BlockLength == 0)
+                                yield break;
+
+                            StreamWrapper.TotalBytesRead = 0;
+                            StreamWrapper.LimitBytesRead = BlockLength;
+
+                            while (true)
+                            {
+                                int Bytes = Stream.ReadAsync(Buffer, 0, Buffer.Length).GetAwaiter().GetResult();
+
+                                if (Bytes == 0)
+                                {
+                                    if (StreamWrapper.TotalBytesRead != BlockLength)
+                                    {
+                                        WaitStream().Wait();
+                                        continue;
+                                    }
+
+                                    break;
+                                }
+
+                                BytesWraper.Length = Bytes;
+
+                                yield return BytesWraper;
+                            }
                         }
                     }
                 }
@@ -392,7 +389,7 @@ namespace Yove.Http
             {
                 while (true)
                 {
-                    string GetLine = Content.GetAsync(true).ConfigureAwait(false).GetAwaiter().GetResult();
+                    string GetLine = Content.Get(true);
 
                     if (GetLine == "\r\n")
                         continue;
@@ -454,7 +451,7 @@ namespace Yove.Http
 
             if (Stream is GZipStream || Stream is DeflateStream)
             {
-                BeginBytesRead = Stream.Read(Buffer, 0, BufferSize);
+                BeginBytesRead = Stream.ReadAsync(Buffer, 0, BufferSize).GetAwaiter().GetResult();
             }
             else
             {
@@ -462,7 +459,7 @@ namespace Yove.Http
                     BeginBytesRead = Content.Read(Buffer, 0, BufferSize);
 
                 if (BeginBytesRead < BufferSize)
-                    BeginBytesRead += Stream.Read(Buffer, BeginBytesRead, BufferSize - BeginBytesRead);
+                    BeginBytesRead += Stream.ReadAsync(Buffer, BeginBytesRead, BufferSize - BeginBytesRead).GetAwaiter().GetResult();
             }
 
             BytesWraper.Length = BeginBytesRead;
@@ -476,7 +473,7 @@ namespace Yove.Http
 
             while (true)
             {
-                int Bytes = Stream.Read(Buffer, 0, BufferSize);
+                int Bytes = Stream.ReadAsync(Buffer, 0, BufferSize).GetAwaiter().GetResult();
 
                 if (Html.Contains("<html"))
                 {
@@ -497,7 +494,9 @@ namespace Yove.Http
                     }
                 }
                 else if (Bytes == 0)
+                {
                     yield break;
+                }
 
                 BytesWraper.Length = Bytes;
 
@@ -515,7 +514,7 @@ namespace Yove.Http
                 if (Sleep < Delay)
                 {
                     Sleep += 10;
-                    await Task.Delay(10).ConfigureAwait(false);
+                    await Task.Delay(10);
 
                     continue;
                 }
@@ -562,7 +561,7 @@ namespace Yove.Http
             using (FileStream Stream = new FileStream(FullPath, FileMode.Append))
             {
                 foreach (BytesWraper Bytes in GetResponseBody())
-                    await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
+                    await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length);
             }
 
             return FullPath;
@@ -576,7 +575,7 @@ namespace Yove.Http
             using (MemoryStream Stream = new MemoryStream())
             {
                 foreach (BytesWraper Bytes in GetResponseBody())
-                    await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
+                    await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length);
 
                 return Stream.ToArray();
             }
@@ -590,7 +589,7 @@ namespace Yove.Http
             MemoryStream Stream = new MemoryStream();
 
             foreach (BytesWraper Bytes in GetResponseBody())
-                await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length).ConfigureAwait(false);
+                await Stream.WriteAsync(Bytes.Value, 0, Bytes.Length);
 
             Stream.Position = 0;
 

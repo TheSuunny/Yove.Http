@@ -1,4 +1,4 @@
-# Yove.Http - Http Client / Http Framework
+# Yove.Http | Http Client / Http Framework
 
 [![NuGet version](https://badge.fury.io/nu/Yove.Http.svg)](https://badge.fury.io/nu/Yove.Http)
 [![Downloads](https://img.shields.io/nuget/dt/Yove.Http.svg)](https://www.nuget.org/packages/Yove.Http)
@@ -34,7 +34,7 @@ Client.UserAgent = HttpUtils.GenerateUserAgent(HttpSystem.Windows, HttpBrowser.C
 or
 
 ```csharp
-HttpClient Client = new HttpClient
+using(HttpClient Client = new HttpClient
 {
     Authorization = $"Bot {Token}", //Add Authorization header
     EnableAutoRedirect = false, //Disable automatic redirection if the server responded with a Location header
@@ -44,7 +44,10 @@ HttpClient Client = new HttpClient
     ReconnectDelay = 1000, //Delay in attempting a new connection
     ReconnectLimit = 3, //Maximum number of reconnection attempts
     UserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.3440.84 Safari/537.36" //Set User Agent
-};
+})
+{
+    // ...
+}
 ```
 
 ### Proxy Client

@@ -109,9 +109,9 @@ namespace Yove.Http
             return BytesRead;
         }
 
-        public override async void Write(byte[] buffer, int offset, int count)
+        public override void Write(byte[] buffer, int offset, int count)
         {
-            await Stream.WriteAsync(buffer, offset, count).ConfigureAwait(false);
+            Stream.Write(buffer, offset, count);
         }
     }
 

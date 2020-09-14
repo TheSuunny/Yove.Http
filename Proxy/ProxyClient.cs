@@ -1,12 +1,13 @@
 using System;
 using System.Net;
 using System.Text;
-using System.Threading;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using Fody;
 
 namespace Yove.Http.Proxy
 {
+    [ConfigureAwait(false)]
     public class ProxyClient
     {
         public string Host { get; set; }
@@ -59,37 +60,20 @@ namespace Yove.Http.Proxy
             if (Port < 0 || Port > 65535)
                 throw new ArgumentNullException("Port goes beyond < 0 or > 65535.");
 
-            TcpClient TcpClient = new TcpClient();
-
-            Exception ConnectionEx = null;
-
-            ManualResetEventSlim ConnectionEvent = new ManualResetEventSlim();
-
-            TcpClient.BeginConnect(Host, Port, new AsyncCallback((ar) =>
+            TcpClient TcpClient = new TcpClient
             {
-                try
-                {
-                    TcpClient.EndConnect(ar);
-                }
-                catch (Exception ex)
-                {
-                    ConnectionEx = ex;
-                }
+                ReceiveTimeout = ReadWriteTimeOut,
+                SendTimeout = ReadWriteTimeOut
+            };
 
-                ConnectionEvent.Set();
+            TcpClient.Connect(Host, Port);
 
-            }), TcpClient);
-
-            if (!ConnectionEvent.Wait(TimeOut) || ConnectionEx != null || !TcpClient.Connected)
-            {
-                TcpClient.Close();
-
+            if (!TcpClient.Connected)
                 throw new ProxyException($"Failed Connection to proxy - {Host}:{Port}");
-            }
 
-            TcpClient.ReceiveTimeout = TcpClient.SendTimeout = ReadWriteTimeOut;
+            NetworkStream Stream = TcpClient.GetStream();
 
-            ConnectionResult Connection = await SendCommand(TcpClient.GetStream(), DestinationHost, DestinationPort).ConfigureAwait(false);
+            ConnectionResult Connection = await SendCommand(Stream, DestinationHost, DestinationPort);
 
             if (Connection != ConnectionResult.OK)
             {
@@ -106,11 +90,11 @@ namespace Yove.Http.Proxy
             switch (Type)
             {
                 case ProxyType.Http:
-                    return await SendHttp(Stream, DestinationHost, DestinationPort).ConfigureAwait(false);
+                    return await SendHttp(Stream, DestinationHost, DestinationPort);
                 case ProxyType.Socks4:
-                    return await SendSocks4(Stream, DestinationHost, DestinationPort).ConfigureAwait(false);
+                    return await SendSocks4(Stream, DestinationHost, DestinationPort);
                 case ProxyType.Socks5:
-                    return await SendSocks5(Stream, DestinationHost, DestinationPort).ConfigureAwait(false);
+                    return await SendSocks5(Stream, DestinationHost, DestinationPort);
                 default:
                     throw new ProxyException("Unsupported proxy type.");
             }
@@ -123,9 +107,9 @@ namespace Yove.Http.Proxy
 
             byte[] RequestBuffer = Encoding.ASCII.GetBytes($"CONNECT {DestinationHost}:{DestinationPort} HTTP/1.1\r\n\r\n");
 
-            await Stream.WriteAsync(RequestBuffer, 0, RequestBuffer.Length).ConfigureAwait(false);
+            Stream.Write(RequestBuffer, 0, RequestBuffer.Length);
 
-            await WaitStream(Stream).ConfigureAwait(false);
+            await WaitStream(Stream);
 
             byte[] ResponseBuffer = new byte[100];
 
@@ -133,7 +117,7 @@ namespace Yove.Http.Proxy
 
             while (Stream.DataAvailable)
             {
-                int Bytes = await Stream.ReadAsync(ResponseBuffer, 0, 100).ConfigureAwait(false);
+                int Bytes = Stream.Read(ResponseBuffer, 0, 100);
 
                 Response.Append(Encoding.ASCII.GetString(ResponseBuffer, 0, Bytes));
             }
@@ -170,11 +154,11 @@ namespace Yove.Http.Proxy
             UserId.CopyTo(Request, 8);
             Request[8] = 0x00;
 
-            await Stream.WriteAsync(Request, 0, Request.Length).ConfigureAwait(false);
+            Stream.Write(Request, 0, Request.Length);
 
-            await WaitStream(Stream).ConfigureAwait(false);
+            await WaitStream(Stream);
 
-            await Stream.ReadAsync(Response, 0, Response.Length).ConfigureAwait(false);
+            Stream.Read(Response, 0, Response.Length);
 
             if (Response[1] != 0x5a)
                 return ConnectionResult.InvalidProxyResponse;
@@ -191,11 +175,11 @@ namespace Yove.Http.Proxy
             Auth[1] = (byte)1;
             Auth[2] = (byte)0;
 
-            await Stream.WriteAsync(Auth, 0, Auth.Length).ConfigureAwait(false);
+            Stream.Write(Auth, 0, Auth.Length);
 
-            await WaitStream(Stream).ConfigureAwait(false);
+            await WaitStream(Stream);
 
-            await Stream.ReadAsync(Response, 0, Response.Length).ConfigureAwait(false);
+            Stream.Read(Response, 0, Response.Length);
 
             if (Response[1] != 0x00)
                 return ConnectionResult.InvalidProxyResponse;
@@ -218,11 +202,11 @@ namespace Yove.Http.Proxy
             Address.CopyTo(Request, 4);
             Port.CopyTo(Request, 4 + Address.Length);
 
-            await Stream.WriteAsync(Request, 0, Request.Length).ConfigureAwait(false);
+            Stream.Write(Request, 0, Request.Length);
 
-            await WaitStream(Stream).ConfigureAwait(false);
+            await WaitStream(Stream);
 
-            await Stream.ReadAsync(Response, 0, Response.Length).ConfigureAwait(false);
+            Stream.Read(Response, 0, Response.Length);
 
             if (Response[1] != 0x00)
                 return ConnectionResult.InvalidProxyResponse;
@@ -240,7 +224,7 @@ namespace Yove.Http.Proxy
                 if (Sleep < Delay)
                 {
                     Sleep += 10;
-                    await Task.Delay(10).ConfigureAwait(false);
+                    await Task.Delay(10);
 
                     continue;
                 }
@@ -251,7 +235,8 @@ namespace Yove.Http.Proxy
 
         private IPAddress GetHost(string Host)
         {
-            if (IPAddress.TryParse(Host, out IPAddress Ip)) return Ip;
+            if (IPAddress.TryParse(Host, out IPAddress Ip))
+                return Ip;
 
             return Dns.GetHostAddresses(Host)[0];
         }
