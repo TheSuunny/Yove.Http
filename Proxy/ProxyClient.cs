@@ -66,9 +66,7 @@ namespace Yove.Http.Proxy
                 SendTimeout = ReadWriteTimeOut
             };
 
-            TcpClient.Connect(Host, Port);
-
-            if (!TcpClient.Connected)
+            if (!TcpClient.ConnectAsync(Host, Port).Wait(ReadWriteTimeOut) || !TcpClient.Connected)
                 throw new ProxyException($"Failed Connection to proxy - {Host}:{Port}");
 
             NetworkStream Stream = TcpClient.GetStream();
@@ -123,7 +121,7 @@ namespace Yove.Http.Proxy
             }
 
             if (Response.Length == 0)
-                new Exception("Received empty response.");
+                throw new Exception("Received empty response.");
 
             HttpStatusCode StatusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($" ", Response.ToString(), " ")?.Trim());
 

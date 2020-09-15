@@ -112,7 +112,7 @@ namespace Yove.Http
         private long TotalReceivedBytes { get; set; }
 
         private bool IsReceivedHeader { get; set; }
-        private bool IsDispose { get; set; }
+        private bool IsDisposed { get; set; }
 
         public EventHandler<UploadEvent> UploadProgressChanged { get; set; }
         public EventHandler<DownloadEvent> DownloadProgressChanged { get; set; }
@@ -207,7 +207,7 @@ namespace Yove.Http
 
         public async Task<HttpResponse> Raw(HttpMethod Method, string URL, HttpContent Content = null)
         {
-            if (IsDispose)
+            if (IsDisposed)
                 throw new ObjectDisposedException("Object disposed.");
 
             if (string.IsNullOrEmpty(URL))
@@ -417,9 +417,7 @@ namespace Yove.Http
                     SendTimeout = ReadWriteTimeOut
                 };
 
-                TcpClient.Connect(Host, Port);
-
-                if (!TcpClient.Connected)
+                if (!TcpClient.ConnectAsync(Host, Port).Wait(ReadWriteTimeOut) || !TcpClient.Connected)
                     throw new Exception($"Failed Connection - {Address.AbsoluteUri}");
 
                 return TcpClient;
@@ -588,19 +586,29 @@ namespace Yove.Http
 
         public void Dispose()
         {
-            Close();
+            if (!IsDisposed)
+            {
+                IsDisposed = true;
 
-            Proxy = null;
-            Response = null;
-            Headers = null;
-            TempHeaders = null;
-            Cookies = null;
-            Connection = null;
-            NetworkStream = null;
-            CommonStream = null;
-            Content = null;
+                Close();
 
-            IsDispose = true;
+                Proxy = null;
+                Response = null;
+                Headers = null;
+                TempHeaders = null;
+                Cookies = null;
+                Connection = null;
+                NetworkStream = null;
+                CommonStream = null;
+                Content = null;
+            }
+        }
+
+        ~HttpClient()
+        {
+            Dispose();
+
+            GC.SuppressFinalize(this);
         }
     }
 }
