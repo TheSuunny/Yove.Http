@@ -8,7 +8,7 @@ namespace Yove.Http
 
         public abstract long ContentLength { get; }
 
-        public abstract void Write(Stream CommonStream);
+        public abstract void Write(Stream commonStream);
 
         public abstract void Dispose();
     }

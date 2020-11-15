@@ -3,13 +3,15 @@ using System.IO;
 using System.Collections.Generic;
 using System.Text;
 using System.Collections;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Yove.Http
 {
     public class MultipartContent : HttpContent, IEnumerable<HttpContent>
     {
+        private List<Element> _elements = new List<Element>();
+
+        private string _boundary { get; set; }
+
         private sealed class Element
         {
             public string Name { get; set; }
@@ -26,210 +28,213 @@ namespace Yove.Http
             }
         }
 
-        private string Boundary { get; set; }
-
-        private List<Element> Elements = new List<Element>();
-
         public override long ContentLength
         {
             get
             {
-                if (Elements.Count == 0)
+                if (_elements.Count == 0)
                     throw new ObjectDisposedException("Content disposed or empty.");
 
-                long Length = 0;
+                long length = 0;
 
-                foreach (Element Item in Elements)
+                foreach (Element item in _elements)
                 {
-                    Length += Item.Content.ContentLength;
+                    length += item.Content.ContentLength;
 
-                    if (Item.IsFieldFile)
+                    if (item.IsFieldFile)
                     {
-                        Length += 72;
-                        Length += Item.Name.Length;
-                        Length += Item.Filename.Length;
-                        Length += Item.Content.ContentType.Length;
+                        length += 72;
+                        length += item.Name.Length;
+                        length += item.Filename.Length;
+                        length += item.Content.ContentType.Length;
                     }
                     else
                     {
-                        Length += 43;
-                        Length += Item.Name.Length;
+                        length += 43;
+                        length += item.Name.Length;
                     }
 
-                    Length += Boundary.Length + 6;
+                    length += _boundary.Length + 6;
                 }
 
-                return Length += Boundary.Length + 6;
+                return length += _boundary.Length + 6;
             }
         }
 
         public MultipartContent() : this($"----------------{HttpUtils.RandomString(16)}") { }
 
-        public MultipartContent(string Boundary)
+        public MultipartContent(string boundary)
         {
-            if (string.IsNullOrEmpty(Boundary))
+            if (string.IsNullOrEmpty(boundary))
                 throw new ArgumentNullException("Boundary is null or empty.");
 
-            this.Boundary = Boundary;
-            this.ContentType = $"multipart/form-data; boundary={Boundary}";
+            _boundary = boundary;
+            ContentType = $"multipart/form-data; boundary={boundary}";
         }
 
-        public void Add(string Name, HttpContent Content)
+        public void Add(string name, HttpContent content)
         {
-            if (string.IsNullOrEmpty(Name))
+            if (string.IsNullOrEmpty(name))
                 throw new ArgumentNullException("Name is null or empty.");
 
-            if (Content == null)
+            if (content == null)
                 throw new ArgumentNullException("Content is null.");
 
-            Elements.Add(new Element
+            _elements.Add(new Element
             {
-                Name = Name,
-                Content = Content
+                Name = name,
+                Content = content
             });
         }
 
-        public void Add(string Name, HttpContent Content, string Filename)
+        public void Add(string name, HttpContent content, string filename)
         {
-            if (string.IsNullOrEmpty(Name))
+            if (string.IsNullOrEmpty(name))
                 throw new ArgumentNullException("Name is null or empty.");
 
-            if (string.IsNullOrEmpty(Filename))
+            if (string.IsNullOrEmpty(filename))
                 throw new ArgumentNullException("Filename is null or empty.");
 
-            if (Content == null)
+            if (content == null)
                 throw new ArgumentNullException("Content is null.");
 
-            Content.ContentType = "multipart/form-data";
+            content.ContentType = "multipart/form-data";
 
-            Elements.Add(new Element
+            _elements.Add(new Element
             {
-                Name = Name,
-                Filename = Filename,
-                Content = Content
+                Name = name,
+                Filename = filename,
+                Content = content
             });
         }
 
-        public void Add(string Name, string ContentType, HttpContent Content, string Filename)
+        public void Add(string name, string contentType, HttpContent content, string filename)
         {
-            if (string.IsNullOrEmpty(Name))
+            if (string.IsNullOrEmpty(name))
                 throw new ArgumentNullException("Name is null or empty.");
 
-            if (string.IsNullOrEmpty(Filename))
+            if (string.IsNullOrEmpty(filename))
                 throw new ArgumentNullException("Filename is null or empty.");
 
-            if (string.IsNullOrEmpty(ContentType))
+            if (string.IsNullOrEmpty(contentType))
                 throw new ArgumentNullException("ContentType is null or empty.");
 
-            if (Content == null)
+            if (content == null)
                 throw new ArgumentNullException("Content is null.");
 
-            Content.ContentType = ContentType;
+            content.ContentType = contentType;
 
-            Elements.Add(new Element
+            _elements.Add(new Element
             {
-                Name = Name,
-                Filename = Filename,
-                Content = Content
+                Name = name,
+                Filename = filename,
+                Content = content
             });
         }
 
-        public void Add(string Name, FileContent Content, string Filename = null)
+        public void Add(string name, FileContent content, string filename = null)
         {
-            if (string.IsNullOrEmpty(Name))
+            if (string.IsNullOrEmpty(name))
                 throw new ArgumentNullException("Name is null or empty.");
 
-            if (Filename == null)
+            if (filename == null)
             {
-                Filename = Path.GetFileName(Content.Path);
+                filename = Path.GetFileName(content.Path);
 
-                if (string.IsNullOrEmpty(Filename))
+                if (string.IsNullOrEmpty(filename))
                     throw new ArgumentNullException("Path is null or empty.");
             }
 
-            if (Content == null)
+            if (content == null)
                 throw new ArgumentNullException("Content is null.");
 
-            Content.ContentType = "multipart/form-data";
+            content.ContentType = "multipart/form-data";
 
-            Elements.Add(new Element
+            _elements.Add(new Element
             {
-                Name = Name,
-                Filename = Filename,
-                Content = Content
+                Name = name,
+                Filename = filename,
+                Content = content
             });
         }
 
-        public void Add(string Name, string ContentType, FileContent Content, string Filename = null)
+        public void Add(string name, string contentType, FileContent content, string filename = null)
         {
-            if (string.IsNullOrEmpty(Name))
+            if (string.IsNullOrEmpty(name))
                 throw new ArgumentNullException("Name is null or empty.");
 
-            if (Filename == null)
+            if (filename == null)
             {
-                if (string.IsNullOrEmpty(Filename))
+                if (string.IsNullOrEmpty(filename))
                     throw new ArgumentNullException("Path is null or empty.");
             }
 
-            if (string.IsNullOrEmpty(ContentType))
+            if (string.IsNullOrEmpty(contentType))
                 throw new ArgumentNullException("ContentType is null or empty.");
 
-            if (Content == null)
+            if (content == null)
                 throw new ArgumentNullException("Content is null.");
 
-            Content.ContentType = ContentType;
+            content.ContentType = contentType;
 
-            Elements.Add(new Element
+            _elements.Add(new Element
             {
-                Name = Name,
-                Filename = Filename,
-                Content = Content
+                Name = name,
+                Filename = filename,
+                Content = content
             });
         }
 
-        public override void Write(Stream CommonStream)
+        public override void Write(Stream commonStream)
         {
-            if (Elements.Count == 0)
+            if (_elements.Count == 0)
                 throw new ObjectDisposedException("Content disposed or empty.");
 
-            if (CommonStream == null)
+            if (commonStream == null)
                 throw new ArgumentNullException("CommonStream is null.");
 
-            byte[] LineBytes = Encoding.ASCII.GetBytes("\r\n");
-            byte[] BoundaryBytes = Encoding.ASCII.GetBytes($"--{Boundary}\r\n");
+            byte[] lineBytes = Encoding.ASCII.GetBytes("\r\n");
+            byte[] boundaryBytes = Encoding.ASCII.GetBytes($"--{_boundary}\r\n");
 
-            foreach (Element Item in Elements)
+            foreach (Element item in _elements)
             {
-                CommonStream.Write(BoundaryBytes, 0, BoundaryBytes.Length);
+                commonStream.Write(boundaryBytes, 0, boundaryBytes.Length);
 
-                string Field = string.Empty;
+                string field = string.Empty;
 
-                if (Item.IsFieldFile)
-                    Field = $"Content-Disposition: form-data; name=\"{Item.Name}\"; filename=\"{Item.Filename}\"\r\nContent-Type: {Item.Content.ContentType}\r\n\r\n";
+                if (item.IsFieldFile)
+                    field = $"Content-Disposition: form-data; name=\"{item.Name}\"; filename=\"{item.Filename}\"\r\nContent-Type: {item.Content.ContentType}\r\n\r\n";
                 else
-                    Field = $"Content-Disposition: form-data; name=\"{Item.Name}\"\r\n\r\n";
+                    field = $"Content-Disposition: form-data; name=\"{item.Name}\"\r\n\r\n";
 
-                byte[] FieldBytes = Encoding.ASCII.GetBytes(Field);
+                byte[] fieldBytes = Encoding.ASCII.GetBytes(field);
 
-                CommonStream.Write(FieldBytes, 0, FieldBytes.Length);
-                Item.Content.Write(CommonStream);
-                CommonStream.Write(LineBytes, 0, LineBytes.Length);
+                commonStream.Write(fieldBytes, 0, fieldBytes.Length);
+                item.Content.Write(commonStream);
+                commonStream.Write(lineBytes, 0, lineBytes.Length);
             }
 
-            BoundaryBytes = Encoding.ASCII.GetBytes($"--{Boundary}--\r\n");
+            boundaryBytes = Encoding.ASCII.GetBytes($"--{_boundary}--\r\n");
 
-            CommonStream.Write(BoundaryBytes, 0, BoundaryBytes.Length);
+            commonStream.Write(boundaryBytes, 0, boundaryBytes.Length);
         }
 
         public override void Dispose()
         {
-            if (Elements.Count > 0)
+            if (_elements.Count > 0)
             {
-                foreach (Element Item in Elements)
-                    Item.Content.Dispose();
+                foreach (Element item in _elements)
+                    item.Content.Dispose();
 
-                Elements.Clear();
+                _elements.Clear();
             }
+        }
+
+        ~MultipartContent()
+        {
+            Dispose();
+
+            GC.SuppressFinalize(this);
         }
 
         public IEnumerator<HttpContent> GetEnumerator()

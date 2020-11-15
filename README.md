@@ -4,8 +4,6 @@
 [![Downloads](https://img.shields.io/nuget/dt/Yove.Http.svg)](https://www.nuget.org/packages/Yove.Http)
 [![Target](https://img.shields.io/badge/.NET%20Standard-2.0-green.svg)](https://docs.microsoft.com/ru-ru/dotnet/standard/net-standard)
 
-<a href="https://www.buymeacoffee.com/3ZEnINLSR" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: auto !important;width: auto !important;" ></a>
-
 Nuget: https://www.nuget.org/packages/Yove.Http/
 
 ```
@@ -18,42 +16,37 @@ dotnet add package Yove.Http
 
 ---
 
-### Create HttpClient
+### Example HttpClient
 
 ```csharp
-HttpClient Client = new HttpClient();
-
-HttpClient Client = new HttpClient("Base URL");
-
-Client.UserAgent = HttpUtils.GenerateUserAgent(); //Full random (Linux, Windows, Mac, ChromeOS) / (Chrome, Firefox, Opera, Edge, Safari)
-Client.UserAgent = HttpUtils.GenerateUserAgent(HttpSystem.Linux); //Partial random (Linux) / (Chrome, Firefox, Opera, Edge, Safari)
-Client.UserAgent = HttpUtils.GenerateUserAgent(HttpBrowser.Firefox); //Partial random (Linux, Windows, Mac, ChromeOS) / (Firefox)
-Client.UserAgent = HttpUtils.GenerateUserAgent(HttpSystem.Windows, HttpBrowser.Chrome); //No random (Windows) / (Chrome)
-```
-
-or
-
-```csharp
-using(HttpClient Client = new HttpClient
+using(HttpClient client = new HttpClient
 {
-    Authorization = $"Bot {Token}", //Add Authorization header
-    EnableAutoRedirect = false, //Disable automatic redirection if the server responded with a Location header
-    EnableCookies = false, //Disable cookies
-    EnableProtocolError = false, //Disable exceptions associated with server response
-    EnableReconnect = false, //Disable reconnection in case of connection errors or data reading
-    ReconnectDelay = 1000, //Delay in attempting a new connection
-    ReconnectLimit = 3, //Maximum number of reconnection attempts
-    UserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.3440.84 Safari/537.36" //Set User Agent
+    Authorization = $"Bot {Token}", // Add Authorization header
+    EnableAutoRedirect = false, // Disable automatic redirection if the server responded with a Location header
+    EnableCookies = false, // Disable cookies
+    EnableProtocolError = false, // Disable exceptions associated with server response
+    EnableReconnect = false, // Disable reconnection in case of connection errors or data reading
+    ReconnectDelay = 1000, // Delay in attempting a new connection
+    ReconnectLimit = 3, // Maximum number of reconnection attempts
+    UserAgent = HttpUtils.GenerateUserAgent() // Set Random User-Agent
 })
 {
-    // ...
+    HttpResponse postResponse = await client.Post("https://example.com/", "name=value");
+
+    JToken jsonContent = postResponse.Json["content"];
+
+    string getResponse = await client.GetString("https://example.com/");
+
+    JToken getJsonResponse = await client.GetJson("https://example.com/list.json");
+
+    string jsonItem = (string)getJsonResponse["count"];
 }
 ```
 
 ### Proxy Client
 
 ```csharp
-HttpClient Client = new HttpClient("Base URL")
+HttpClient client = new HttpClient("Base URL")
 {
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Http),
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks4),
@@ -66,32 +59,24 @@ HttpClient Client = new HttpClient("Base URL")
 
 | Link                                                             | README                                                        |
 | ---------------------------------------------------------------- | ------------------------------------------------------------- |
-| `await Client.Get("http://example.com/");`                       | Simple GET request                                            |
-| `await Client.GetBytes("http://example.com/");`                  | Makes a GET request and returns a response byte[]             |
-| `await Client.GetStream("http://example.com/");`                 | Makes a GET request and returns a response MemoryStream       |
-| `await Client.GetString("http://example.com/");`                 | Makes a GET request and returns a response ToString           |
-| `await Client.GetJson("http://example.com/");`                   | Makes a GET request and returns a response JToken [JSON]      |
-| `await Client.GetToFile("http://example.com/", "Save path");`    | Makes a GET request and save file                             |
-| `await Client.Post("http://example.com/", "id=0&message=test");` | Simple POST request, supports up to 5 reload                  |
-| `await Client.Raw(HttpMethod.DELETE, "http://example.com/");`    | Raw method, can accept any parameters included in HttpContent |
+| `await client.Get("http://example.com/");`                       | Simple GET request                                            |
+| `await client.GetBytes("http://example.com/");`                  | Makes a GET request and returns a response byte[]             |
+| `await client.GetStream("http://example.com/");`                 | Makes a GET request and returns a response MemoryStream       |
+| `await client.GetString("http://example.com/");`                 | Makes a GET request and returns a response ToString           |
+| `await client.GetJson("http://example.com/");`                   | Makes a GET request and returns a response JToken [JSON]      |
+| `await client.GetToFile("http://example.com/", "Save path");`    | Makes a GET request and save file                             |
+| `await client.Post("http://example.com/", "id=0&message=test");` | Simple POST request, supports up to 5 reload                  |
+| `await client.Raw(HttpMethod.DELETE, "http://example.com/");`    | Raw method, can accept any parameters included in HttpContent |
 
-### Example Request
-
-```csharp
-JToken Get = await Client.GetJson("https://api.ipify.org/?format=json");
-
-Console.WriteLine(Get["ip"]);
-```
-
-### Events
+### Upload or download events
 
 ```csharp
-Client.DownloadProgressChanged += (s, e) =>
+client.DownloadProgressChanged += (s, e) =>
 {
     Console.WriteLine($"{e.Received} / {e.Total} | {e.ProgressPercentage} | {e.Speed.MegaBytes} MB/s | {e.Speed.GigaBytes} GB/s");
 };
 
-Client.UploadProgressChanged += (s, e) =>
+client.UploadProgressChanged += (s, e) =>
 {
     Console.WriteLine($"{e.Sent} / {e.Total} | {e.ProgressPercentage} | {e.Speed.MegaBytes} MB/s | {e.Speed.GigaBytes} GB/s");
 };
@@ -100,45 +85,47 @@ Client.UploadProgressChanged += (s, e) =>
 ### Add header / Read header
 
 ```csharp
-Client.Headers.Add("Token", Token);
-Client.AddTempHeader("Token", Token); //This header will be deleted after the request
+client.Headers.Add("Token", Token);
+client.AddTempHeader("Token", Token); // This header will be deleted after the request
 
-Client["Token"] = Token;
+client["Token"] = Token;
 
-string Token = Response["Token"];
+HttpResponse postResponse = await client.Post("https://example.com/", "name=value");
+
+string token = postResponse["Token"];
 ```
 
 ### Upload file [Multipart]
 
 ```csharp
-MultipartContent Content = new MultipartContent
+MultipartContent content = new MultipartContent
 {
-    { "file", new FileContent("Path") }, //If you do not specify the file name, the client will transfer the file name from the path
+    { "file", new FileContent("Path") }, // If you do not specify the file name, the client will transfer the file name from the path
     { "file", new FileContent("Path"), "Filename" },
     { "content", new StringContent("Message") },
     { "document", new FileContent(Stream), "Test.txt" }
 };
 
-HttpResponse Response = await Client.Post("http://example.com/", Content);
+HttpResponse uploadResponse = await client.Post("http://example.com/", content);
 ```
 
 ### Http Response
 
 ```csharp
 
-HttpResponse Response = await Client.Get("http://example.com/");
+HttpResponse response = await Client.Get("http://example.com/");
 
-string Body = Response.Body; //Receives the response body from the server
+string body = response.Body; // Receives the response string body
 
-string Result = Response.Parser("<h1>", "</h1>"); //Parsing HTML data
+string result = response.Parser("<h1>", "</h1>"); // Parsing HTML body
 
-MemoryStream Stream = await Response.ToMemoryStream(); //Return the response in MemoryStream
+MemoryStream stream = await response.ToMemoryStream(); // Return the response in MemoryStream
 
-byte[] Bytes = await Response.ToBytes(); //Return the response in byte[]
+byte[] bytes = await response.ToBytes(); // Return the response in byte[]
 
-string SavePath = await Response.ToFile("Path to save", "Filename"); //If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
+string savePath = await response.ToFile("Path to save", "Filename"); // If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
 
-string Username = (string)Response.Json["users"][0]["username"]; //Return JToken object [JSON]
+string username = (string)response.Json["users"][0]["username"]; // Return JToken object [JSON]
 ```
 
 ---
@@ -164,19 +151,8 @@ Supports both default requests and WebDAV
 | LOCK      | Put a lock on the object                                                                 |
 | UNLOCK    | Unlock a resource                                                                        |
 
----
-
-### TODO
-
-- [x] - Proxy Client
-- [x] - Keep Alive
-- [x] - Json Parser
-
----
 
 ### Other
-
-This project is not related to xYove or xNet.
 
 If you are missing something in the library, do not be afraid to write me :)
 

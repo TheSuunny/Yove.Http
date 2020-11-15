@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.Serialization;
 
-namespace Yove.Http.Proxy
+namespace Yove.Http
 {
     public class ProxyException : Exception
     {

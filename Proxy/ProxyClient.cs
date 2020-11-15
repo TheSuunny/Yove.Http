@@ -1,9 +1,10 @@
+using Fody;
 using System;
 using System.Net;
 using System.Text;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using Fody;
+using System.Threading;
 
 namespace Yove.Http.Proxy
 {
@@ -17,42 +18,31 @@ namespace Yove.Http.Proxy
         public int TimeOut { get; set; } = 60000;
         public int ReadWriteTimeOut { get; set; } = 60000;
 
-        private const byte AddressTypeIPV4 = 0x01;
-        private const byte AddressTypeIPV6 = 0x04;
-        private const byte AddressTypeDomainName = 0x03;
+        private const byte ADDRESS_TYPE_IPV4 = 0x01;
+        private const byte ADDRESS_TYPE_IPV6 = 0x04;
+        private const byte ADDRESS_TYPE_DOMAIN_NAME = 0x03;
 
         public ProxyClient() { }
 
-        public ProxyClient(string Host, int Port, ProxyType Type)
+        public ProxyClient(string host, int port, ProxyType type) : this($"{host}:{port}", type) { }
+
+        public ProxyClient(string proxy, ProxyType type)
         {
-            if (string.IsNullOrEmpty(Host))
-                throw new ArgumentNullException("Host is null or empty.");
-
-            if (Port < 0 || Port > 65535)
-                throw new ArgumentNullException("Port goes beyond < 0 or > 65535.");
-
-            this.Host = Host;
-            this.Port = Port;
-            this.Type = Type;
-        }
-
-        public ProxyClient(string Proxy, ProxyType Type)
-        {
-            if (string.IsNullOrEmpty(Proxy) || !Proxy.Contains(":"))
+            if (string.IsNullOrEmpty(proxy) || !proxy.Contains(":"))
                 throw new ArgumentNullException("Proxy is null or empty or invalid type.");
 
-            string Host = Proxy.Split(':')[0];
-            int Port = Convert.ToInt32(Proxy.Split(':')[1]);
+            string host = proxy.Split(':')[0];
+            int port = Convert.ToInt32(proxy.Split(':')[1]);
 
-            if (Port < 0 || Port > 65535)
+            if (port < 0 || port > 65535)
                 throw new ArgumentNullException("Port goes beyond < 0 or > 65535.");
 
-            this.Host = Host;
-            this.Port = Port;
-            this.Type = Type;
+            this.Host = host;
+            this.Port = port;
+            this.Type = type;
         }
 
-        internal async Task<TcpClient> CreateConnection(string DestinationHost, int DestinationPort)
+        internal async Task<TcpClient> CreateConnection(string destinationHost, int destinationPort)
         {
             if (string.IsNullOrEmpty(Host))
                 throw new ArgumentNullException("Host is null or empty.");
@@ -60,168 +50,181 @@ namespace Yove.Http.Proxy
             if (Port < 0 || Port > 65535)
                 throw new ArgumentNullException("Port goes beyond < 0 or > 65535.");
 
-            TcpClient TcpClient = new TcpClient
+            TcpClient client = new TcpClient
             {
                 ReceiveTimeout = ReadWriteTimeOut,
                 SendTimeout = ReadWriteTimeOut
             };
 
-            if (!TcpClient.ConnectAsync(Host, Port).Wait(ReadWriteTimeOut) || !TcpClient.Connected)
-                throw new ProxyException($"Failed Connection to proxy - {Host}:{Port}");
+            TaskCompletionSource<bool> completionSource = new TaskCompletionSource<bool>();
 
-            NetworkStream Stream = TcpClient.GetStream();
-
-            ConnectionResult Connection = await SendCommand(Stream, DestinationHost, DestinationPort);
-
-            if (Connection != ConnectionResult.OK)
+            using (CancellationTokenSource cancellationToken = new CancellationTokenSource(TimeSpan.FromMilliseconds(ReadWriteTimeOut)))
             {
-                TcpClient.Close();
+                Task connectionTask = client.ConnectAsync(Host, Port);
 
-                throw new ProxyException($"Could not connect to proxy server | Response - {Connection}");
+                using (cancellationToken.Token.Register(() => completionSource.TrySetResult(true)))
+                {
+                    if (connectionTask != await Task.WhenAny(connectionTask, completionSource.Task))
+                        throw new ProxyException($"Failed Connection to proxy - {Host}:{Port}");
+                }
             }
 
-            return TcpClient;
+            if (!client.Connected)
+                throw new ProxyException($"Failed Connection to proxy - {Host}:{Port}");
+
+            NetworkStream networkStream = client.GetStream();
+
+            ConnectionResult connection = await SendCommand(networkStream, destinationHost, destinationPort);
+
+            if (connection != ConnectionResult.OK)
+            {
+                client.Close();
+
+                throw new ProxyException($"Could not connect to proxy server | Response - {connection}");
+            }
+
+            return client;
         }
 
-        private async Task<ConnectionResult> SendCommand(NetworkStream Stream, string DestinationHost, int DestinationPort)
+        private async Task<ConnectionResult> SendCommand(NetworkStream networkStream, string destinationHost, int destinationPort)
         {
             switch (Type)
             {
                 case ProxyType.Http:
-                    return await SendHttp(Stream, DestinationHost, DestinationPort);
+                    return await SendHttp(networkStream, destinationHost, destinationPort);
                 case ProxyType.Socks4:
-                    return await SendSocks4(Stream, DestinationHost, DestinationPort);
+                    return await SendSocks4(networkStream, destinationHost, destinationPort);
                 case ProxyType.Socks5:
-                    return await SendSocks5(Stream, DestinationHost, DestinationPort);
+                    return await SendSocks5(networkStream, destinationHost, destinationPort);
                 default:
                     throw new ProxyException("Unsupported proxy type.");
             }
         }
 
-        private async Task<ConnectionResult> SendHttp(NetworkStream Stream, string DestinationHost, int DestinationPort)
+        private async Task<ConnectionResult> SendHttp(NetworkStream networkStream, string destinationHost, int destinationPort)
         {
-            if (DestinationPort == 80)
+            if (destinationPort == 80)
                 return ConnectionResult.OK;
 
-            byte[] RequestBuffer = Encoding.ASCII.GetBytes($"CONNECT {DestinationHost}:{DestinationPort} HTTP/1.1\r\n\r\n");
+            byte[] requestBytes = Encoding.ASCII.GetBytes($"CONNECT {destinationHost}:{destinationPort} HTTP/1.1\r\n\r\n");
 
-            Stream.Write(RequestBuffer, 0, RequestBuffer.Length);
+            networkStream.Write(requestBytes, 0, requestBytes.Length);
 
-            await WaitStream(Stream);
+            await WaitStream(networkStream);
 
-            byte[] ResponseBuffer = new byte[100];
+            StringBuilder responseBuilder = new StringBuilder();
 
-            StringBuilder Response = new StringBuilder();
+            byte[] buffer = new byte[100];
 
-            while (Stream.DataAvailable)
+            while (networkStream.DataAvailable)
             {
-                int Bytes = Stream.Read(ResponseBuffer, 0, 100);
+                int readBytes = networkStream.Read(buffer, 0, 100);
 
-                Response.Append(Encoding.ASCII.GetString(ResponseBuffer, 0, Bytes));
+                responseBuilder.Append(Encoding.ASCII.GetString(buffer, 0, readBytes));
             }
 
-            if (Response.Length == 0)
+            if (responseBuilder.Length == 0)
                 throw new Exception("Received empty response.");
 
-            HttpStatusCode StatusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($" ", Response.ToString(), " ")?.Trim());
+            HttpStatusCode statusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($" ", responseBuilder.ToString(), " ")?.Trim());
 
-            if (StatusCode != HttpStatusCode.OK)
+            if (statusCode != HttpStatusCode.OK)
                 return ConnectionResult.InvalidProxyResponse;
 
             return ConnectionResult.OK;
         }
 
-        private async Task<ConnectionResult> SendSocks4(NetworkStream Stream, string DestinationHost, int DestinationPort)
+        private async Task<ConnectionResult> SendSocks4(NetworkStream networkStream, string destinationHost, int destinationPort)
         {
-            byte AddressType = GetAddressType(DestinationHost);
+            byte addressType = GetAddressType(destinationHost);
 
-            if (AddressType == AddressTypeDomainName)
-                DestinationHost = GetHost(DestinationHost).ToString();
+            if (addressType == ADDRESS_TYPE_DOMAIN_NAME)
+                destinationHost = GetHost(destinationHost).ToString();
 
-            byte[] Address = GetIPAddressBytes(DestinationHost);
-            byte[] Port = GetPortBytes(DestinationPort);
-            byte[] UserId = new byte[0];
+            byte[] address = GetIPAddressBytes(destinationHost);
+            byte[] port = GetPortBytes(destinationPort);
+            byte[] userId = new byte[0];
 
-            byte[] Request = new byte[9];
-            byte[] Response = new byte[8];
+            byte[] request = new byte[9];
+            byte[] response = new byte[8];
 
-            Request[0] = (byte)4;
-            Request[1] = 0x01;
-            Address.CopyTo(Request, 4);
-            Port.CopyTo(Request, 2);
-            UserId.CopyTo(Request, 8);
-            Request[8] = 0x00;
+            request[0] = (byte)4;
+            request[1] = 0x01;
+            address.CopyTo(request, 4);
+            port.CopyTo(request, 2);
+            userId.CopyTo(request, 8);
+            request[8] = 0x00;
 
-            Stream.Write(Request, 0, Request.Length);
+            networkStream.Write(request, 0, request.Length);
 
-            await WaitStream(Stream);
+            await WaitStream(networkStream);
 
-            Stream.Read(Response, 0, Response.Length);
+            networkStream.Read(response, 0, response.Length);
 
-            if (Response[1] != 0x5a)
+            if (response[1] != 0x5a)
                 return ConnectionResult.InvalidProxyResponse;
 
             return ConnectionResult.OK;
         }
 
-        private async Task<ConnectionResult> SendSocks5(NetworkStream Stream, string DestinationHost, int DestinationPort)
+        private async Task<ConnectionResult> SendSocks5(NetworkStream networkStream, string destinationHost, int destinationPort)
         {
-            byte[] Response = new byte[255];
+            byte[] response = new byte[255];
+            byte[] auth = new byte[3];
 
-            byte[] Auth = new byte[3];
-            Auth[0] = (byte)5;
-            Auth[1] = (byte)1;
-            Auth[2] = (byte)0;
+            auth[0] = (byte)5;
+            auth[1] = (byte)1;
+            auth[2] = (byte)0;
 
-            Stream.Write(Auth, 0, Auth.Length);
+            networkStream.Write(auth, 0, auth.Length);
 
-            await WaitStream(Stream);
+            await WaitStream(networkStream);
 
-            Stream.Read(Response, 0, Response.Length);
+            networkStream.Read(response, 0, response.Length);
 
-            if (Response[1] != 0x00)
+            if (response[1] != 0x00)
                 return ConnectionResult.InvalidProxyResponse;
 
-            byte AddressType = GetAddressType(DestinationHost);
+            byte addressType = GetAddressType(destinationHost);
 
-            if (AddressType == AddressTypeDomainName)
-                DestinationHost = GetHost(DestinationHost).ToString();
+            if (addressType == ADDRESS_TYPE_DOMAIN_NAME)
+                destinationHost = GetHost(destinationHost).ToString();
 
-            byte[] Address = GetAddressBytes(AddressType, DestinationHost);
-            byte[] Port = GetPortBytes(DestinationPort);
+            byte[] address = GetAddressBytes(addressType, destinationHost);
+            byte[] port = GetPortBytes(destinationPort);
 
-            byte[] Request = new byte[4 + Address.Length + 2];
+            byte[] request = new byte[4 + address.Length + 2];
 
-            Request[0] = (byte)5;
-            Request[1] = 0x01;
-            Request[2] = 0x00;
-            Request[3] = AddressType;
+            request[0] = (byte)5;
+            request[1] = 0x01;
+            request[2] = 0x00;
+            request[3] = addressType;
 
-            Address.CopyTo(Request, 4);
-            Port.CopyTo(Request, 4 + Address.Length);
+            address.CopyTo(request, 4);
+            port.CopyTo(request, 4 + address.Length);
 
-            Stream.Write(Request, 0, Request.Length);
+            networkStream.Write(request, 0, request.Length);
 
-            await WaitStream(Stream);
+            await WaitStream(networkStream);
 
-            Stream.Read(Response, 0, Response.Length);
+            networkStream.Read(response, 0, response.Length);
 
-            if (Response[1] != 0x00)
+            if (response[1] != 0x00)
                 return ConnectionResult.InvalidProxyResponse;
 
             return ConnectionResult.OK;
         }
 
-        private async Task WaitStream(NetworkStream Stream)
+        private async Task WaitStream(NetworkStream networkStream)
         {
-            int Sleep = 0;
-            int Delay = (Stream.ReadTimeout < 10) ? 10 : Stream.ReadTimeout;
+            int sleep = 0;
+            int delay = (networkStream.ReadTimeout < 10) ? 10 : networkStream.ReadTimeout;
 
-            while (!Stream.DataAvailable)
+            while (!networkStream.DataAvailable)
             {
-                if (Sleep < Delay)
+                if (sleep < delay)
                 {
-                    Sleep += 10;
+                    sleep += 10;
                     await Task.Delay(10);
 
                     continue;
@@ -231,69 +234,67 @@ namespace Yove.Http.Proxy
             }
         }
 
-        private IPAddress GetHost(string Host)
+        private IPAddress GetHost(string host)
         {
-            if (IPAddress.TryParse(Host, out IPAddress Ip))
+            if (IPAddress.TryParse(host, out IPAddress Ip))
                 return Ip;
 
             return Dns.GetHostAddresses(Host)[0];
         }
 
-        private byte[] GetAddressBytes(byte AddressType, string Host)
+        private byte[] GetAddressBytes(byte addressType, string host)
         {
-            switch (AddressType)
+            switch (addressType)
             {
-                case AddressTypeIPV4:
-                case AddressTypeIPV6:
-                    return IPAddress.Parse(Host).GetAddressBytes();
-                case AddressTypeDomainName:
-                    byte[] Bytes = new byte[Host.Length + 1];
+                case ADDRESS_TYPE_IPV4:
+                case ADDRESS_TYPE_IPV6:
+                    return IPAddress.Parse(host).GetAddressBytes();
+                case ADDRESS_TYPE_DOMAIN_NAME:
+                    byte[] bytes = new byte[host.Length + 1];
 
-                    Bytes[0] = (byte)Host.Length;
-                    Encoding.ASCII.GetBytes(Host).CopyTo(Bytes, 1);
+                    bytes[0] = (byte)host.Length;
+                    Encoding.ASCII.GetBytes(host).CopyTo(bytes, 1);
 
-                    return Bytes;
+                    return bytes;
                 default:
                     return null;
             }
         }
 
-        private byte GetAddressType(string Host)
+        private byte GetAddressType(string host)
         {
-            if (IPAddress.TryParse(Host, out IPAddress Ip))
+            if (IPAddress.TryParse(host, out IPAddress ip))
             {
-                if (Ip.AddressFamily == AddressFamily.InterNetwork)
-                    return AddressTypeIPV4;
+                if (ip.AddressFamily == AddressFamily.InterNetwork)
+                    return ADDRESS_TYPE_IPV4;
 
-                return AddressTypeIPV6;
+                return ADDRESS_TYPE_IPV6;
             }
 
-            return AddressTypeDomainName;
+            return ADDRESS_TYPE_DOMAIN_NAME;
         }
 
-        private byte[] GetIPAddressBytes(string DestinationHost)
+        private byte[] GetIPAddressBytes(string destinationHost)
         {
-            IPAddress Address = null;
-
-            if (!IPAddress.TryParse(DestinationHost, out Address))
+            if (!IPAddress.TryParse(destinationHost, out IPAddress address))
             {
-                IPAddress[] IPs = Dns.GetHostAddresses(DestinationHost);
+                IPAddress[] IPs = Dns.GetHostAddresses(destinationHost);
 
                 if (IPs.Length > 0)
-                    Address = IPs[0];
+                    address = IPs[0];
             }
 
-            return Address.GetAddressBytes();
+            return address.GetAddressBytes();
         }
 
-        private byte[] GetPortBytes(int Port)
+        private byte[] GetPortBytes(int port)
         {
-            byte[] ArrayBytes = new byte[2];
+            byte[] bytes = new byte[2];
 
-            ArrayBytes[0] = (byte)(Port / 256);
-            ArrayBytes[1] = (byte)(Port % 256);
+            bytes[0] = (byte)(port / 256);
+            bytes[1] = (byte)(port % 256);
 
-            return ArrayBytes;
+            return bytes;
         }
     }
 }

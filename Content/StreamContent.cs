@@ -22,35 +22,35 @@ namespace Yove.Http
 
         public StreamContent() { }
 
-        public StreamContent(Stream Content, int BufferSize = 32768)
+        public StreamContent(Stream content, int bufferSize = 32768)
         {
-            if (Content == null || !Content.CanRead || !Content.CanSeek)
+            if (content == null || !content.CanRead || !content.CanSeek)
                 throw new ArgumentNullException("Parameters is empty or invalid value.");
 
-            this.Content = Content;
-            this.BufferSize = BufferSize;
+            this.Content = content;
+            this.BufferSize = bufferSize;
         }
 
-        public override void Write(Stream CommonStream)
+        public override void Write(Stream commonStream)
         {
             if (Content == null)
                 throw new ObjectDisposedException("Content disposed or empty.");
 
-            if (CommonStream == null)
+            if (commonStream == null)
                 throw new ArgumentNullException("Stream is empty.");
 
             Content.Position = 0;
 
-            byte[] Buffer = new byte[BufferSize];
+            byte[] buffer = new byte[BufferSize];
 
             while (true)
             {
-                int Bytes = Content.Read(Buffer, 0, Buffer.Length);
+                int readBytes = Content.Read(buffer, 0, buffer.Length);
 
-                if (Bytes == 0)
+                if (readBytes == 0)
                     break;
 
-                CommonStream.Write(Buffer, 0, Bytes);
+                commonStream.Write(buffer, 0, readBytes);
             }
         }
 

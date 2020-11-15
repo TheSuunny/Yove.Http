@@ -20,24 +20,24 @@ namespace Yove.Http
 
         public ByteContent() { }
 
-        public ByteContent(byte[] Content) : this(Content, 0, Content.Length) { }
+        public ByteContent(byte[] content) : this(content, 0, content.Length) { }
 
-        public ByteContent(byte[] Content, int Offset, int Count)
+        public ByteContent(byte[] content, int offset, int count)
         {
-            if (Content == null || Offset < 0 || Count < 0 || Offset > Content.Length || Count > (Content.Length - Offset))
+            if (content == null || offset < 0 || count < 0 || offset > content.Length || count > (content.Length - offset))
                 throw new ArgumentNullException("Parameters is empty or invalid value.");
 
-            this.Content = Content;
-            this.Offset = Offset;
-            this.Count = Count;
+            this.Content = content;
+            this.Offset = offset;
+            this.Count = count;
         }
 
-        public override void Write(Stream CommonStream)
+        public override void Write(Stream commonStream)
         {
-            if (CommonStream == null)
+            if (commonStream == null)
                 throw new ArgumentNullException("Stream is empty.");
 
-            CommonStream.Write(Content, Offset, Count);
+            commonStream.Write(Content, Offset, Count);
         }
 
         public override void Dispose() { }

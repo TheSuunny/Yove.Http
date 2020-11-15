@@ -13,7 +13,7 @@ namespace Yove.Http.Events
         {
             get
             {
-                return ByteSize.FromBytes(SpeedBytes);
+                return ByteSize.FromBytes(_speedBytes);
             }
         }
 
@@ -25,13 +25,14 @@ namespace Yove.Http.Events
             }
         }
 
-        private long SpeedBytes { get; set; }
+        private long _speedBytes { get; set; }
 
-        public DownloadEvent(long Speed, long Received, long Total)
+        public DownloadEvent(long speed, long received, long total)
         {
-            this.SpeedBytes = Speed;
-            this.Received = Received;
-            this.Total = Total;
+            _speedBytes = speed;
+
+            Received = received;
+            Total = total;
         }
     }
 }

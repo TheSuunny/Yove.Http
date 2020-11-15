@@ -6,25 +6,28 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <DisableFody>true</DisableFody>
   </PropertyGroup>
+
   <PropertyGroup>
     <id>Yove.Http</id>
-    <Version>1.4.1</Version>
+    <Version>1.5.0</Version>
     <Authors>Sunny</Authors>
     <NeutralLanguage>en-US, ru-RU</NeutralLanguage>
-    <Description>Http Client / Http Framework for .Net / .Net Core</Description>
+    <Description>Http Client for .Net | Http, Socks4, Socks5 client</Description>
     <TargetFrameworks>netstandard2.0</TargetFrameworks>
-    <PackageTags>http; client; framework; .net core; .net</PackageTags>
+    <PackageTags>http; client; framework; .net core; .net; socks4; socks5; https;</PackageTags>
     <PackageProjectUrl>https://github.com/TheSuunny/Yove.Http</PackageProjectUrl>
     <RepositoryUrl>https://github.com/TheSuunny/Yove.Http</RepositoryUrl>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+  
   <ItemGroup>
     <PackageReference Include="ByteSize" Version="2.0.0"/>
-    <PackageReference Include="System.Text.Encoding.CodePages" Version="4.7.1"/>
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="5.0.0"/>
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3"/>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" PrivateAssets="All"/>
-    <PackageReference Include="Fody" Version="6.2.5"/>
+    <PackageReference Include="Fody" Version="6.3.0"/>
     <PackageReference Include="ConfigureAwait.Fody" Version="3.3.1"/>
+    <PackageReference Include="BrotliSharpLib" Version="0.3.3"/>
   </ItemGroup>
 </Project>

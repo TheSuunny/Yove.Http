@@ -64,15 +64,21 @@ namespace Yove.Http
             }
         }
 
-        public StreamWrapper(Stream Stream, Receiver Content)
+        public StreamWrapper(Stream stream, Receiver content)
         {
-            this.Stream = Stream;
-            this.Content = Content;
+            Stream = stream;
+            Content = content;
         }
 
-        public override void Flush() => Stream.Flush();
+        public override void Flush()
+        {
+            Stream.Flush();
+        }
 
-        public override void SetLength(long value) => Stream.SetLength(value);
+        public override void SetLength(long value)
+        {
+            Stream.SetLength(value);
+        }
 
         public override long Seek(long offset, SeekOrigin origin)
         {
@@ -83,18 +89,18 @@ namespace Yove.Http
         {
             if (LimitBytesRead != 0)
             {
-                int Length = LimitBytesRead - TotalBytesRead;
+                int length = LimitBytesRead - TotalBytesRead;
 
-                if (Length == 0)
+                if (length == 0)
                     return 0;
 
-                if (Length > buffer.Length)
-                    Length = buffer.Length;
+                if (length > buffer.Length)
+                    length = buffer.Length;
 
                 if (Content.HasData)
-                    BytesRead = Content.Read(buffer, offset, Length);
+                    BytesRead = Content.Read(buffer, offset, length);
                 else
-                    BytesRead = Stream.Read(buffer, offset, Length);
+                    BytesRead = Stream.Read(buffer, offset, length);
             }
             else
             {
@@ -115,10 +121,10 @@ namespace Yove.Http
         }
     }
 
-    internal class EventWraperStream : Stream
+    internal class EventStreamWrapper : Stream
     {
-        private Stream Stream { get; set; }
-        private int BufferSize { get; set; }
+        private Stream _stream { get; set; }
+        private int _bufferSize { get; set; }
 
         public Action<int> ReadBytesCallback { get; set; }
         public Action<int> WriteBytesCallback { get; set; }
@@ -127,7 +133,7 @@ namespace Yove.Http
         {
             get
             {
-                return Stream.CanRead;
+                return _stream.CanRead;
             }
         }
 
@@ -135,7 +141,7 @@ namespace Yove.Http
         {
             get
             {
-                return Stream.CanSeek;
+                return _stream.CanSeek;
             }
         }
 
@@ -143,7 +149,7 @@ namespace Yove.Http
         {
             get
             {
-                return Stream.CanTimeout;
+                return _stream.CanTimeout;
             }
         }
 
@@ -151,7 +157,7 @@ namespace Yove.Http
         {
             get
             {
-                return Stream.CanWrite;
+                return _stream.CanWrite;
             }
         }
 
@@ -159,7 +165,7 @@ namespace Yove.Http
         {
             get
             {
-                return Stream.Length;
+                return _stream.Length;
             }
         }
 
@@ -167,32 +173,38 @@ namespace Yove.Http
         {
             get
             {
-                return Stream.Position;
+                return _stream.Position;
             }
             set
             {
-                Stream.Position = value;
+                _stream.Position = value;
             }
         }
 
-        public EventWraperStream(Stream Stream, int BufferSize)
+        public EventStreamWrapper(Stream stream, int bufferSize)
         {
-            this.Stream = Stream;
-            this.BufferSize = BufferSize;
+            _stream = stream;
+            _bufferSize = bufferSize;
         }
 
-        public override void Flush() => Stream.Flush();
+        public override void Flush()
+        {
+            _stream.Flush();
+        }
 
-        public override void SetLength(long value) => Stream.SetLength(value);
+        public override void SetLength(long value)
+        {
+            _stream.SetLength(value);
+        }
 
         public override long Seek(long offset, SeekOrigin origin)
         {
-            return Stream.Seek(offset, origin);
+            return _stream.Seek(offset, origin);
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            int BytesRead = Stream.Read(buffer, offset, count);
+            int BytesRead = _stream.Read(buffer, offset, count);
 
             if (ReadBytesCallback != null)
                 ReadBytesCallback(BytesRead);
@@ -204,34 +216,34 @@ namespace Yove.Http
         {
             if (WriteBytesCallback != null)
             {
-                int Index = 0;
+                int index = 0;
 
                 do
                 {
-                    int WriteBytes = 0;
+                    int writeBytes = 0;
 
-                    if (count >= BufferSize)
+                    if (count >= _bufferSize)
                     {
-                        WriteBytes = BufferSize;
-                        Stream.Write(buffer, Index, WriteBytes);
+                        writeBytes = _bufferSize;
+                        _stream.Write(buffer, index, writeBytes);
 
-                        Index += BufferSize;
-                        count -= BufferSize;
+                        index += _bufferSize;
+                        count -= _bufferSize;
                     }
                     else
                     {
-                        WriteBytes = count;
-                        Stream.Write(buffer, Index, WriteBytes);
+                        writeBytes = count;
+                        _stream.Write(buffer, index, writeBytes);
 
                         count = 0;
                     }
 
-                    WriteBytesCallback(WriteBytes);
+                    WriteBytesCallback(writeBytes);
                 } while (count > 0);
             }
             else
             {
-                Stream.Write(buffer, offset, count);
+                _stream.Write(buffer, offset, count);
             }
         }
     }

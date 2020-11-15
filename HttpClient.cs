@@ -11,34 +11,19 @@ using Yove.Http.Proxy;
 using Yove.Http.Events;
 using Newtonsoft.Json.Linq;
 using Fody;
+using System.Threading;
 
 namespace Yove.Http
 {
     [ConfigureAwait(false)]
     public class HttpClient : IDisposable, ICloneable
     {
-        public ProxyClient Proxy
-        {
-            get
-            {
-                return ProxyBase;
-            }
-            set
-            {
-                ProxyBase = value;
-
-                HasConnection = false;
-            }
-        }
-
-        private ProxyClient ProxyBase { get; set; }
-
         public NameValueCollection Headers = new NameValueCollection();
         public NameValueCollection TempHeaders = new NameValueCollection();
 
         public NameValueCollection Cookies { get; set; }
 
-        public string BaseURL { get; set; }
+        public string BaseUrl { get; set; }
         public string Username { get; set; }
         public string Password { get; set; }
         public string Language { get; set; } = "en-US,en;q=0.9";
@@ -49,16 +34,17 @@ namespace Yove.Http
 
         public Encoding CharacterSet { get; set; }
 
-        public bool KeepAlive { get; set; } = true;
         public int KeepAliveTimeOut { get; set; } = 60000;
         public int KeepAliveMaxRequest { get; set; } = 100;
 
+        public bool KeepAlive { get; set; } = true;
         public bool EnableEncodingContent { get; set; } = true;
         public bool EnableAutoRedirect { get; set; } = true;
         public bool EnableProtocolError { get; set; } = true;
         public bool EnableCookies { get; set; } = true;
         public bool EnableReconnect { get; set; } = true;
         public bool HasConnection { get; set; }
+        public bool IsDisposed { get; set; }
 
         public int ReconnectLimit { get; set; } = 3;
         public int ReconnectDelay { get; set; } = 1000;
@@ -67,26 +53,60 @@ namespace Yove.Http
 
         public Uri Address { get; private set; }
 
-        private HttpResponse Response { get; set; }
+        internal TcpClient Connection { get; set; }
+        internal NetworkStream NetworkStream { get; set; }
+        internal Stream CommonStream { get; set; }
+        internal HttpMethod Method { get; set; }
+        internal HttpContent Content { get; set; }
 
-        private int ReconnectCount { get; set; }
-        private int KeepAliveRequestCount { get; set; }
+        internal RemoteCertificateValidationCallback AcceptAllCertificationsCallback = new RemoteCertificateValidationCallback(AcceptAllCertifications);
 
-        private DateTime WhenConnectionIdle { get; set; }
+        private HttpResponse _response { get; set; }
 
-        public string this[string Key]
+        private ProxyClient _proxy { get; set; }
+
+        private int _reconnectCount { get; set; }
+        private int _keepAliveRequestCount { get; set; }
+
+        private DateTime _whenConnectionIdle { get; set; }
+
+        private long _sentBytes { get; set; }
+        private long _totalSentBytes { get; set; }
+        private long _receivedBytes { get; set; }
+        private long _totalReceivedBytes { get; set; }
+
+        private bool _isReceivedHeader { get; set; }
+
+        public EventHandler<UploadEvent> UploadProgressChanged { get; set; }
+        public EventHandler<DownloadEvent> DownloadProgressChanged { get; set; }
+
+        public string this[string key]
         {
             get
             {
-                if (string.IsNullOrEmpty(Key))
+                if (string.IsNullOrEmpty(key))
                     throw new ArgumentNullException("Key is null or empty.");
 
-                return Headers[Key];
+                return Headers[key];
             }
             set
             {
                 if (!string.IsNullOrEmpty(value))
-                    Headers[Key] = value;
+                    Headers[key] = value;
+            }
+        }
+
+        public ProxyClient Proxy
+        {
+            get
+            {
+                return _proxy;
+            }
+            set
+            {
+                _proxy = value;
+
+                HasConnection = false;
             }
         }
 
@@ -94,28 +114,9 @@ namespace Yove.Http
         {
             get
             {
-                return EnableReconnect && ReconnectCount < ReconnectLimit;
+                return EnableReconnect && _reconnectCount < ReconnectLimit;
             }
         }
-
-        internal TcpClient Connection { get; set; }
-        internal NetworkStream NetworkStream { get; set; }
-        internal Stream CommonStream { get; set; }
-        internal HttpMethod Method { get; set; }
-        internal HttpContent Content { get; set; }
-        internal RemoteCertificateValidationCallback AcceptAllCertificationsCallback = new RemoteCertificateValidationCallback(AcceptAllCertifications);
-
-        private long SentBytes { get; set; }
-        private long TotalSentBytes { get; set; }
-
-        private long ReceivedBytes { get; set; }
-        private long TotalReceivedBytes { get; set; }
-
-        private bool IsReceivedHeader { get; set; }
-        private bool IsDisposed { get; set; }
-
-        public EventHandler<UploadEvent> UploadProgressChanged { get; set; }
-        public EventHandler<DownloadEvent> DownloadProgressChanged { get; set; }
 
         public HttpClient()
         {
@@ -123,113 +124,113 @@ namespace Yove.Http
                 Cookies = new NameValueCollection();
         }
 
-        public HttpClient(string BaseURL)
+        public HttpClient(string baseUrl)
         {
-            this.BaseURL = BaseURL;
+            BaseUrl = baseUrl;
 
             if (EnableCookies && Cookies == null)
                 Cookies = new NameValueCollection();
         }
 
-        public async Task<HttpResponse> Post(string URL)
+        public async Task<HttpResponse> Post(string url)
         {
-            return await Raw(HttpMethod.POST, URL);
+            return await Raw(HttpMethod.POST, url);
         }
 
-        public async Task<HttpResponse> Post(string URL, string Content, string ContentType = "application/json")
+        public async Task<HttpResponse> Post(string url, string body, string contentType = "application/json")
         {
-            return await Raw(HttpMethod.POST, URL, new StringContent(Content)
+            return await Raw(HttpMethod.POST, url, new StringContent(body)
             {
-                ContentType = ContentType
+                ContentType = contentType
             });
         }
 
-        public async Task<HttpResponse> Post(string URL, byte[] Content, string ContentType = "application/octet-stream")
+        public async Task<HttpResponse> Post(string url, byte[] body, string contentType = "application/octet-stream")
         {
-            return await Raw(HttpMethod.POST, URL, new ByteContent(Content)
+            return await Raw(HttpMethod.POST, url, new ByteContent(body)
             {
-                ContentType = ContentType
+                ContentType = contentType
             });
         }
 
-        public async Task<HttpResponse> Post(string URL, Stream Content, string ContentType = "application/octet-stream")
+        public async Task<HttpResponse> Post(string url, Stream body, string contentType = "application/octet-stream")
         {
-            return await Raw(HttpMethod.POST, URL, new StreamContent(Content)
+            return await Raw(HttpMethod.POST, url, new StreamContent(body)
             {
-                ContentType = ContentType
+                ContentType = contentType
             });
         }
 
-        public async Task<HttpResponse> Post(string URL, HttpContent Content)
+        public async Task<HttpResponse> Post(string url, HttpContent body)
         {
-            return await Raw(HttpMethod.POST, URL, Content);
+            return await Raw(HttpMethod.POST, url, body);
         }
 
-        public async Task<HttpResponse> Get(string URL)
+        public async Task<HttpResponse> Get(string url)
         {
-            return await Raw(HttpMethod.GET, URL);
+            return await Raw(HttpMethod.GET, url);
         }
 
-        public async Task<string> GetString(string URL)
+        public async Task<string> GetString(string url)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, URL);
+            HttpResponse Response = await Raw(HttpMethod.GET, url);
 
             return Response.Body;
         }
 
-        public async Task<JToken> GetJson(string URL)
+        public async Task<JToken> GetJson(string url)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, URL);
+            HttpResponse Response = await Raw(HttpMethod.GET, url);
 
             return JToken.Parse(Response.Body);
         }
 
-        public async Task<byte[]> GetBytes(string URL)
+        public async Task<byte[]> GetBytes(string url)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, URL);
+            HttpResponse Response = await Raw(HttpMethod.GET, url);
 
             return await Response.ToBytes();
         }
 
-        public async Task<MemoryStream> GetStream(string URL)
+        public async Task<MemoryStream> GetStream(string url)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, URL);
+            HttpResponse Response = await Raw(HttpMethod.GET, url);
 
             return await Response.ToMemoryStream();
         }
 
-        public async Task<string> GetToFile(string URL, string LocalPath, string Filename = null)
+        public async Task<string> GetToFile(string url, string path, string filename = null)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, URL);
+            HttpResponse Response = await Raw(HttpMethod.GET, url);
 
-            return await Response.ToFile(LocalPath, Filename);
+            return await Response.ToFile(path, filename);
         }
 
-        public async Task<HttpResponse> Raw(HttpMethod Method, string URL, HttpContent Content = null)
+        public async Task<HttpResponse> Raw(HttpMethod method, string url, HttpContent body = null)
         {
             if (IsDisposed)
                 throw new ObjectDisposedException("Object disposed.");
 
-            if (string.IsNullOrEmpty(URL))
+            if (string.IsNullOrEmpty(url))
                 throw new ArgumentNullException("URL is null or empty.");
 
-            if ((!URL.StartsWith("https://") && !URL.StartsWith("http://")) && !string.IsNullOrEmpty(BaseURL))
-                URL = $"{BaseURL.TrimEnd('/')}/{URL}";
+            if ((!url.StartsWith("https://") && !url.StartsWith("http://")) && !string.IsNullOrEmpty(BaseUrl))
+                url = $"{BaseUrl.TrimEnd('/')}/{url}";
 
             if (!EnableCookies && Cookies != null)
                 Cookies = null;
 
-            this.Method = Method;
-            this.Content = Content;
+            Method = method;
+            Content = body;
 
-            ReceivedBytes = 0;
-            SentBytes = 0;
+            _receivedBytes = 0;
+            _sentBytes = 0;
 
-            if (CheckKeepAlive() || Address.Host != new UriBuilder(URL).Host)
+            if (CheckKeepAlive() || Address.Host != new UriBuilder(url).Host)
             {
                 Close();
 
-                this.Address = new UriBuilder(URL).Uri;
+                this.Address = new UriBuilder(url).Uri;
 
                 try
                 {
@@ -239,12 +240,12 @@ namespace Yove.Http
 
                     if (Address.Scheme.StartsWith("https"))
                     {
-                        SslStream SSL = new SslStream(NetworkStream, false, AcceptAllCertificationsCallback);
+                        SslStream sslStream = new SslStream(NetworkStream, false, AcceptAllCertificationsCallback);
 
-                        SSL.AuthenticateAsClient(Address.Host, null, SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls |
+                        sslStream.AuthenticateAsClient(Address.Host, null, SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls |
                             SslProtocols.Ssl3 | SslProtocols.Ssl2 | SslProtocols.Tls, false);
 
-                        CommonStream = SSL;
+                        CommonStream = sslStream;
                     }
                     else
                     {
@@ -255,60 +256,60 @@ namespace Yove.Http
 
                     if (DownloadProgressChanged != null || UploadProgressChanged != null)
                     {
-                        EventWraperStream WraperStream = new EventWraperStream(CommonStream, Connection.SendBufferSize);
+                        EventStreamWrapper eventStream = new EventStreamWrapper(CommonStream, Connection.SendBufferSize);
 
                         if (UploadProgressChanged != null)
                         {
-                            long Speed = 0;
+                            long speed = 0;
 
-                            WraperStream.WriteBytesCallback = (e) =>
+                            eventStream.WriteBytesCallback = (e) =>
                             {
-                                Speed += e;
-                                SentBytes += e;
+                                speed += e;
+                                _sentBytes += e;
                             };
 
                             new Task(async () =>
                             {
-                                while ((int)(((double)SentBytes / (double)TotalSentBytes) * 100.0) != 100 && HasConnection)
+                                while ((int)(((double)_sentBytes / (double)_totalSentBytes) * 100.0) != 100 && HasConnection)
                                 {
                                     await Task.Delay(1000);
 
                                     if (UploadProgressChanged != null)
-                                        UploadProgressChanged(this, new UploadEvent(Speed, SentBytes, TotalSentBytes));
+                                        UploadProgressChanged(this, new UploadEvent(speed, _sentBytes, _totalSentBytes));
 
-                                    Speed = 0;
+                                    speed = 0;
                                 }
                             }).Start();
                         }
 
                         if (DownloadProgressChanged != null)
                         {
-                            long Speed = 0;
+                            long speed = 0;
 
-                            WraperStream.ReadBytesCallback = (e) =>
+                            eventStream.ReadBytesCallback = (e) =>
                             {
-                                Speed += e;
-                                ReceivedBytes += e;
+                                speed += e;
+                                _receivedBytes += e;
                             };
 
                             new Task(async () =>
                             {
-                                while ((int)(((double)ReceivedBytes / (double)TotalReceivedBytes) * 100.0) != 100 && HasConnection)
+                                while ((int)(((double)_receivedBytes / (double)_totalReceivedBytes) * 100.0) != 100 && HasConnection)
                                 {
                                     await Task.Delay(1000);
 
-                                    if (IsReceivedHeader)
+                                    if (_isReceivedHeader)
                                     {
                                         if (DownloadProgressChanged != null)
-                                            DownloadProgressChanged(this, new DownloadEvent(Speed, ReceivedBytes, TotalReceivedBytes));
+                                            DownloadProgressChanged(this, new DownloadEvent(speed, _receivedBytes, _totalReceivedBytes));
                                     }
 
-                                    Speed = 0;
+                                    speed = 0;
                                 }
                             }).Start();
                         }
 
-                        CommonStream = WraperStream;
+                        CommonStream = eventStream;
                     }
                 }
                 catch (Exception ex)
@@ -321,32 +322,32 @@ namespace Yove.Http
             }
             else
             {
-                this.Address = new UriBuilder(URL).Uri;
+                Address = new UriBuilder(url).Uri;
             }
 
             try
             {
-                long ContentLength = 0L;
-                string ContentType = null;
+                long contentLength = 0L;
+                string contentType = null;
 
                 if (Method != HttpMethod.GET && Content != null)
                 {
-                    ContentType = Content.ContentType;
-                    ContentLength = Content.ContentLength;
+                    contentType = Content.ContentType;
+                    contentLength = Content.ContentLength;
                 }
 
-                string StringHeader = GenerateHeaders(Method, ContentLength, ContentType);
+                string stringHeader = GenerateHeaders(Method, contentLength, contentType);
 
-                byte[] StartingLineBytes = Encoding.ASCII.GetBytes($"{Method} {Address.PathAndQuery} HTTP/1.1\r\n");
-                byte[] HeadersBytes = Encoding.ASCII.GetBytes(StringHeader);
+                byte[] startingLineBytes = Encoding.ASCII.GetBytes($"{Method} {Address.PathAndQuery} HTTP/1.1\r\n");
+                byte[] headersBytes = Encoding.ASCII.GetBytes(stringHeader);
 
-                SentBytes = 0;
-                TotalSentBytes = StartingLineBytes.Length + HeadersBytes.Length + ContentLength;
+                _sentBytes = 0;
+                _totalSentBytes = startingLineBytes.Length + headersBytes.Length + contentLength;
 
-                CommonStream.Write(StartingLineBytes, 0, StartingLineBytes.Length);
-                CommonStream.Write(HeadersBytes, 0, HeadersBytes.Length);
+                CommonStream.Write(startingLineBytes, 0, startingLineBytes.Length);
+                CommonStream.Write(headersBytes, 0, headersBytes.Length);
 
-                if (Content != null && ContentLength != 0)
+                if (Content != null && contentLength != 0)
                     Content.Write(CommonStream);
             }
             catch (Exception ex)
@@ -359,12 +360,14 @@ namespace Yove.Http
 
             try
             {
-                IsReceivedHeader = false;
+                _isReceivedHeader = false;
 
-                Response = new HttpResponse(this);
+                _response = new HttpResponse(this);
 
-                TotalReceivedBytes = Response.ResponseLength;
-                IsReceivedHeader = true;
+                await _response.LoadBody();
+
+                _totalReceivedBytes = _response.ResponseLength;
+                _isReceivedHeader = true;
             }
             catch (Exception ex)
             {
@@ -374,165 +377,186 @@ namespace Yove.Http
                 throw new Exception($"Failed receive data from - {Address.AbsoluteUri}", ex);
             }
 
-            ReconnectCount = 0;
-            WhenConnectionIdle = DateTime.Now;
+            _reconnectCount = 0;
+            _whenConnectionIdle = DateTime.Now;
 
             if (EnableProtocolError)
             {
-                if ((int)Response.StatusCode >= 400 && (int)Response.StatusCode < 500)
-                    throw new Exception($"[Client] | Status Code - {Response.StatusCode}\r\n{Response.Body}");
+                if ((int)_response.StatusCode >= 400 && (int)_response.StatusCode < 500)
+                    throw new Exception($"[Client] | Status Code - {_response.StatusCode}\r\n{_response.Body}");
 
-                if ((int)Response.StatusCode >= 500)
-                    throw new Exception($"[Server] | Status Code - {Response.StatusCode}\r\n{Response.Body}");
+                if ((int)_response.StatusCode >= 500)
+                    throw new Exception($"[Server] | Status Code - {_response.StatusCode}\r\n{_response.Body}");
             }
 
-            if (EnableAutoRedirect && Response.Location != null)
-                return await Raw(Method, Response.Location, Content);
+            if (EnableAutoRedirect && _response.Location != null)
+                return await Raw(Method, _response.Location, Content);
 
-            return Response;
+            return _response;
         }
 
         private bool CheckKeepAlive()
         {
-            int MaxRequest = (Response != null && Response.KeepAliveMax != 0) ? Response.KeepAliveMax : KeepAliveMaxRequest;
-            int Timeout = (Response != null && Response.KeepAliveTimeout != 0) ? Response.KeepAliveTimeout : KeepAliveTimeOut;
+            int maxRequest = (_response != null && _response.KeepAliveMax != 0) ? _response.KeepAliveMax : KeepAliveMaxRequest;
 
-            if (KeepAliveRequestCount == 0 || KeepAliveRequestCount == MaxRequest ||
-                (Response != null && Response.ConnectionClose) || !HasConnection)
+            if (_keepAliveRequestCount == 0 || _keepAliveRequestCount == maxRequest ||
+                (_response != null && _response.ConnectionClose) || !HasConnection)
+            {
                 return true;
+            }
 
-            if (WhenConnectionIdle.AddMilliseconds(TimeOut) < DateTime.Now)
+            if (_whenConnectionIdle.AddMilliseconds(TimeOut) < DateTime.Now)
                 return true;
 
             return false;
         }
 
-        private async Task<TcpClient> CreateConnection(string Host, int Port)
+        private async Task<TcpClient> CreateConnection(string host, int port)
         {
             if (Proxy == null)
             {
-                TcpClient TcpClient = new TcpClient
+                TcpClient tcpClient = new TcpClient
                 {
                     ReceiveTimeout = ReadWriteTimeOut,
                     SendTimeout = ReadWriteTimeOut
                 };
 
-                if (!TcpClient.ConnectAsync(Host, Port).Wait(ReadWriteTimeOut) || !TcpClient.Connected)
+                TaskCompletionSource<bool> taskCompletion = new TaskCompletionSource<bool>();
+
+                using (CancellationTokenSource cancellationToken = new CancellationTokenSource(TimeSpan.FromMilliseconds(ReadWriteTimeOut)))
+                {
+                    Task connectionTask = tcpClient.ConnectAsync(host, port);
+
+                    using (cancellationToken.Token.Register(() => taskCompletion.TrySetResult(true)))
+                    {
+                        if (connectionTask != await Task.WhenAny(connectionTask, taskCompletion.Task))
+                            throw new Exception($"Failed Connection - {Address.AbsoluteUri}");
+                    }
+                }
+
+                if (!tcpClient.Connected)
                     throw new Exception($"Failed Connection - {Address.AbsoluteUri}");
 
-                return TcpClient;
+                return tcpClient;
             }
             else
             {
-                return await Proxy.CreateConnection(Host, Port);
+                return await Proxy.CreateConnection(host, port);
             }
         }
 
-        private string GenerateHeaders(HttpMethod Method, long ContentLength = 0, string ContentType = null)
+        private string GenerateHeaders(HttpMethod method, long contentLength = 0, string contentType = null)
         {
-            NameValueCollection RawHeaders = new NameValueCollection();
+            NameValueCollection rawHeaders = new NameValueCollection();
 
             if (Address.IsDefaultPort)
-                RawHeaders["Host"] = Address.Host;
+                rawHeaders["Host"] = Address.Host;
             else
-                RawHeaders["Host"] = $"{Address.Host}:{Address.Port}";
+                rawHeaders["Host"] = $"{Address.Host}:{Address.Port}";
 
             if (!string.IsNullOrEmpty(UserAgent))
-                RawHeaders["User-Agent"] = UserAgent;
+                rawHeaders["User-Agent"] = UserAgent;
 
-            RawHeaders["Accept"] = Accept;
-            RawHeaders["Accept-Language"] = Language;
+            rawHeaders["Accept"] = Accept;
+            rawHeaders["Accept-Language"] = Language;
 
             if (EnableEncodingContent)
-                RawHeaders["Accept-Encoding"] = "gzip, deflate";
+                rawHeaders["Accept-Encoding"] = "gzip, deflate, br";
 
             if (!string.IsNullOrEmpty(Username) && !string.IsNullOrEmpty(Password))
-            {
-                string Auth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Username}:{Password}"));
-
-                RawHeaders["Authorization"] = $"Basic {Auth}";
-            }
+                rawHeaders["Authorization"] = $"Basic {Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Username}:{Password}"))}";
 
             if (!string.IsNullOrEmpty(Referer))
-                RawHeaders["Referer"] = Referer;
+                rawHeaders["Referer"] = Referer;
 
             if (!string.IsNullOrEmpty(Authorization))
-                RawHeaders["Authorization"] = Authorization;
+                rawHeaders["Authorization"] = Authorization;
 
             if (CharacterSet != null)
             {
                 if (CharacterSet != Encoding.UTF8)
-                    RawHeaders["Accept-Charset"] = $"{CharacterSet.WebName},utf-8";
+                    rawHeaders["Accept-Charset"] = $"{CharacterSet.WebName},utf-8";
                 else
-                    RawHeaders["Accept-Charset"] = "utf-8";
+                    rawHeaders["Accept-Charset"] = "utf-8";
             }
 
-            if (Method != HttpMethod.GET)
+            if (method != HttpMethod.GET)
             {
-                if (ContentLength > 0)
-                    RawHeaders["Content-Type"] = ContentType;
+                if (contentLength > 0)
+                    rawHeaders["Content-Type"] = contentType;
 
-                RawHeaders["Content-Length"] = ContentLength.ToString();
+                rawHeaders["Content-Length"] = contentLength.ToString();
             }
 
             if (Proxy != null && Proxy.Type == ProxyType.Http)
             {
                 if (KeepAlive)
                 {
-                    RawHeaders["Proxy-Connection"] = "keep-alive";
+                    rawHeaders["Proxy-Connection"] = "keep-alive";
 
-                    KeepAliveRequestCount++;
+                    _keepAliveRequestCount++;
                 }
                 else
                 {
-                    RawHeaders["Proxy-Connection"] = "close";
+                    rawHeaders["Proxy-Connection"] = "close";
                 }
             }
             else
             {
                 if (KeepAlive)
                 {
-                    RawHeaders["Connection"] = "keep-alive";
+                    rawHeaders["Connection"] = "keep-alive";
 
-                    KeepAliveRequestCount++;
+                    _keepAliveRequestCount++;
                 }
                 else
                 {
-                    RawHeaders["Connection"] = "close";
+                    rawHeaders["Connection"] = "close";
                 }
             }
 
             if (Cookies != null && Cookies.Count > 0)
             {
-                string CookieBuilder = string.Empty;
+                string cookiesBuilder = string.Empty;
 
                 foreach (string Cookie in Cookies)
-                    CookieBuilder += $"{Cookie}={Cookies[Cookie]}; ";
+                    cookiesBuilder += $"{Cookie}={Cookies[Cookie]}; ";
 
-                RawHeaders["Cookie"] = CookieBuilder.TrimEnd();
+                rawHeaders["Cookie"] = cookiesBuilder.TrimEnd();
             }
 
-            StringBuilder Builder = new StringBuilder();
+            StringBuilder headerBuuilder = new StringBuilder();
 
-            foreach (string Header in RawHeaders)
-                Builder.AppendFormat($"{Header}: {RawHeaders[Header]}\r\n");
+            foreach (string header in rawHeaders)
+                headerBuuilder.AppendFormat($"{header}: {rawHeaders[header]}\r\n");
 
-            foreach (string Header in Headers)
-                Builder.AppendFormat($"{Header}: {Headers[Header]}\r\n");
+            foreach (string header in Headers)
+                headerBuuilder.AppendFormat($"{header}: {Headers[header]}\r\n");
 
-            foreach (string Header in TempHeaders)
-                Builder.AppendFormat($"{Header}: {TempHeaders[Header]}\r\n");
+            foreach (string header in TempHeaders)
+                headerBuuilder.AppendFormat($"{header}: {TempHeaders[header]}\r\n");
 
             TempHeaders.Clear();
 
-            return $"{Builder}\r\n";
+            return $"{headerBuuilder}\r\n";
+        }
+
+        public void AddTempHeader(string key, string value)
+        {
+            if (string.IsNullOrEmpty(key))
+                throw new ArgumentNullException("Key is null or empty.");
+
+            if (string.IsNullOrEmpty(value))
+                throw new ArgumentNullException("Value is null or empty.");
+
+            TempHeaders.Add(key, value);
         }
 
         private async Task<HttpResponse> ReconnectFail()
         {
             Close();
 
-            ReconnectCount++;
+            _reconnectCount++;
 
             await Task.Delay(ReconnectDelay);
 
@@ -544,17 +568,6 @@ namespace Yove.Http
             return true;
         }
 
-        public void AddTempHeader(string Key, string Value)
-        {
-            if (string.IsNullOrEmpty(Key))
-                throw new ArgumentNullException("Key is null or empty.");
-
-            if (string.IsNullOrEmpty(Value))
-                throw new ArgumentNullException("Value is null or empty.");
-
-            TempHeaders.Add(Key, Value);
-        }
-
         public object Clone()
         {
             return this.MemberwiseClone();
@@ -562,26 +575,19 @@ namespace Yove.Http
 
         public void Close()
         {
-            try
-            {
-                Connection?.Close();
-                Connection?.Dispose();
+            Connection?.Close();
+            Connection?.Dispose();
 
-                NetworkStream?.Close();
-                NetworkStream?.Dispose();
+            NetworkStream?.Close();
+            NetworkStream?.Dispose();
 
-                CommonStream?.Close();
-                CommonStream?.Dispose();
+            CommonStream?.Close();
+            CommonStream?.Dispose();
 
-                Content?.Dispose();
+            Content?.Dispose();
 
-                KeepAliveRequestCount = 0;
-                HasConnection = false;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex);
-            }
+            _keepAliveRequestCount = 0;
+            HasConnection = false;
         }
 
         public void Dispose()
@@ -593,7 +599,7 @@ namespace Yove.Http
                 Close();
 
                 Proxy = null;
-                Response = null;
+                _response = null;
                 Headers = null;
                 TempHeaders = null;
                 Cookies = null;

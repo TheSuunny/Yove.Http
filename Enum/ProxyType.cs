@@ -1,4 +1,4 @@
-namespace Yove.Http.Proxy
+namespace Yove.Http
 {
     public enum ProxyType
     {

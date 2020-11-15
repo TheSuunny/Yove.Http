@@ -7,23 +7,23 @@ namespace Yove.Http
     {
         internal string Path { get; set; }
 
-        public FileContent(string Path, int BufferSize = 32768)
+        public FileContent(string path, int bufferSize = 32768)
         {
-            if (string.IsNullOrEmpty(Path))
+            if (string.IsNullOrEmpty(path))
                 throw new ArgumentNullException("Path is null or empty.");
 
-            this.Content = new FileStream(Path, FileMode.Open, FileAccess.Read);
-            this.BufferSize = BufferSize;
-            this.Path = Path;
+            this.Content = new FileStream(path, FileMode.Open, FileAccess.Read);
+            this.BufferSize = bufferSize;
+            this.Path = path;
         }
 
-        public FileContent(Stream Stream, int BufferSize = 32768)
+        public FileContent(Stream stream, int bufferSize = 32768)
         {
-            if (Stream == null)
+            if (stream == null)
                 throw new ArgumentNullException("Stream is null.");
 
-            this.Content = Stream;
-            this.BufferSize = BufferSize;
+            this.Content = stream;
+            this.BufferSize = bufferSize;
         }
     }
 }

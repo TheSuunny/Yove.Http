@@ -5,14 +5,14 @@ namespace Yove.Http
 {
     public class StringContent : ByteContent
     {
-        public StringContent(string Content) : this(Content, Encoding.UTF8) { }
+        public StringContent(string content) : this(content, Encoding.UTF8) { }
 
-        public StringContent(string Content, Encoding Encoding)
+        public StringContent(string content, Encoding encoding)
         {
-            if (Content == null || Encoding == null)
+            if (content == null || encoding == null)
                 throw new ArgumentNullException("Content or Encoding is null.");
 
-            this.Content = Encoding.GetBytes(Content);
+            this.Content = encoding.GetBytes(content);
             this.Offset = 0;
             this.Count = this.Content.Length;
         }
