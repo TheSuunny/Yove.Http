@@ -245,10 +245,13 @@ namespace Yove.Http
             if (stream == null)
                 stream = await ReceiveUnsizeBody(_request.CommonStream);
 
-            stream.Position = 0;
+            if (stream != null)
+            {
+                stream.Position = 0;
 
-            if (Body == null)
-                Body = CharacterSet.GetString(stream.ToArray(), 0, (int)stream.Length);
+                if (Body == null)
+                    Body = CharacterSet.GetString(stream.ToArray(), 0, (int)stream.Length);
+            }
 
             return stream;
         }
@@ -434,7 +437,7 @@ namespace Yove.Http
 
             byte[] buffer = new byte[_request.Connection.ReceiveBufferSize];
 
-            if (inputStream is GZipStream || inputStream is DeflateStream)
+            if (inputStream is GZipStream || inputStream is DeflateStream || inputStream is BrotliStream)
             {
                 beginBytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length);
             }

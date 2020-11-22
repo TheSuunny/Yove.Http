@@ -50,7 +50,7 @@ namespace Yove.Http.Proxy
             if (Port < 0 || Port > 65535)
                 throw new ArgumentNullException("Port goes beyond < 0 or > 65535.");
 
-            TcpClient client = new TcpClient
+            TcpClient tcpClient = new TcpClient
             {
                 ReceiveTimeout = ReadWriteTimeOut,
                 SendTimeout = ReadWriteTimeOut
@@ -60,7 +60,7 @@ namespace Yove.Http.Proxy
 
             using (CancellationTokenSource cancellationToken = new CancellationTokenSource(TimeSpan.FromMilliseconds(ReadWriteTimeOut)))
             {
-                Task connectionTask = client.ConnectAsync(Host, Port);
+                Task connectionTask = tcpClient.ConnectAsync(Host, Port);
 
                 using (cancellationToken.Token.Register(() => completionSource.TrySetResult(true)))
                 {
@@ -69,21 +69,21 @@ namespace Yove.Http.Proxy
                 }
             }
 
-            if (!client.Connected)
+            if (!tcpClient.Connected)
                 throw new ProxyException($"Failed Connection to proxy - {Host}:{Port}");
 
-            NetworkStream networkStream = client.GetStream();
+            NetworkStream networkStream = tcpClient.GetStream();
 
             ConnectionResult connection = await SendCommand(networkStream, destinationHost, destinationPort);
 
             if (connection != ConnectionResult.OK)
             {
-                client.Close();
+                tcpClient.Close();
 
                 throw new ProxyException($"Could not connect to proxy server | Response - {connection}");
             }
 
-            return client;
+            return tcpClient;
         }
 
         private async Task<ConnectionResult> SendCommand(NetworkStream networkStream, string destinationHost, int destinationPort)
@@ -239,7 +239,7 @@ namespace Yove.Http.Proxy
             if (IPAddress.TryParse(host, out IPAddress Ip))
                 return Ip;
 
-            return Dns.GetHostAddresses(Host)[0];
+            return Dns.GetHostAddresses(host)[0];
         }
 
         private byte[] GetAddressBytes(byte addressType, string host)
@@ -276,15 +276,17 @@ namespace Yove.Http.Proxy
 
         private byte[] GetIPAddressBytes(string destinationHost)
         {
-            if (!IPAddress.TryParse(destinationHost, out IPAddress address))
-            {
-                IPAddress[] IPs = Dns.GetHostAddresses(destinationHost);
+            IPAddress address = null;
 
-                if (IPs.Length > 0)
-                    address = IPs[0];
+            if (!IPAddress.TryParse(destinationHost, out address))
+            {
+                IPAddress[] ipAddresses = Dns.GetHostAddresses(destinationHost);
+
+                if (ipAddresses.Length > 0)
+                    address = ipAddresses[0];
             }
 
-            return address.GetAddressBytes();
+            return address?.GetAddressBytes();
         }
 
         private byte[] GetPortBytes(int port)

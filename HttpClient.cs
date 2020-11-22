@@ -242,7 +242,7 @@ namespace Yove.Http
                     {
                         SslStream sslStream = new SslStream(NetworkStream, false, AcceptAllCertificationsCallback);
 
-                        sslStream.AuthenticateAsClient(Address.Host, null, SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls |
+                        await sslStream.AuthenticateAsClientAsync(Address.Host, null, SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls |
                             SslProtocols.Ssl3 | SslProtocols.Ssl2 | SslProtocols.Tls, false);
 
                         CommonStream = sslStream;
