@@ -195,7 +195,12 @@ namespace Yove.Http
                         string cookieValue = cookie.Split('=')[1]?.Trim();
 
                         if (!string.IsNullOrEmpty(cookieName))
+                        {
                             Cookies[cookieName] = cookieValue;
+
+                            if (_request.EnableCookies && _request.Cookies != null)
+                                _request.Cookies[cookieName] = cookieValue;
+                        }
                     }
                     else
                     {
