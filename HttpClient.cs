@@ -226,6 +226,8 @@ namespace Yove.Http
             _receivedBytes = 0;
             _sentBytes = 0;
 
+            TimeSpan timeResponseStart = DateTime.Now.TimeOfDay;
+
             if (CheckKeepAlive() || Address.Host != new UriBuilder(url).Host)
             {
                 Close();
@@ -315,7 +317,7 @@ namespace Yove.Http
                 catch (Exception ex)
                 {
                     if (CanReconnect)
-                        return await ReconnectFail();
+                        return await Reconnect(method, url, body);
 
                     throw new Exception($"Failed connected to - {Address.AbsoluteUri}", ex);
                 }
@@ -353,7 +355,7 @@ namespace Yove.Http
             catch (Exception ex)
             {
                 if (CanReconnect)
-                    return await ReconnectFail();
+                    return await Reconnect(method, url, body);
 
                 throw new Exception($"Failed send data to - {Address.AbsoluteUri}", ex);
             }
@@ -372,13 +374,15 @@ namespace Yove.Http
             catch (Exception ex)
             {
                 if (CanReconnect)
-                    return await ReconnectFail();
+                    return await Reconnect(method, url, body);
 
                 throw new Exception($"Failed receive data from - {Address.AbsoluteUri}", ex);
             }
 
             _reconnectCount = 0;
             _whenConnectionIdle = DateTime.Now;
+
+            _response.TimeResponse = (DateTime.Now - timeResponseStart).TimeOfDay;
 
             if (EnableProtocolError)
             {
@@ -400,13 +404,11 @@ namespace Yove.Http
             int maxRequest = (_response != null && _response.KeepAliveMax != 0) ? _response.KeepAliveMax : KeepAliveMaxRequest;
 
             if (_keepAliveRequestCount == 0 || _keepAliveRequestCount == maxRequest ||
-                (_response != null && _response.ConnectionClose) || !HasConnection)
+                (_response != null && _response.ConnectionClose) || !HasConnection ||
+                _whenConnectionIdle.AddMilliseconds(TimeOut) < DateTime.Now)
             {
                 return true;
             }
-
-            if (_whenConnectionIdle.AddMilliseconds(TimeOut) < DateTime.Now)
-                return true;
 
             return false;
         }
@@ -552,7 +554,7 @@ namespace Yove.Http
             TempHeaders.Add(key, value);
         }
 
-        private async Task<HttpResponse> ReconnectFail()
+        private async Task<HttpResponse> Reconnect(HttpMethod method, string url, HttpContent body = null)
         {
             Close();
 
@@ -560,7 +562,7 @@ namespace Yove.Http
 
             await Task.Delay(ReconnectDelay);
 
-            return await Raw(Method, Address.AbsoluteUri, Content);
+            return await Raw(method, url, body);
         }
 
         private static bool AcceptAllCertifications(object sender, X509Certificate certification, X509Chain chain, SslPolicyErrors sslPolicyErrors)
@@ -584,9 +586,9 @@ namespace Yove.Http
             CommonStream?.Close();
             CommonStream?.Dispose();
 
-            Content?.Dispose();
-
+            _response = null;
             _keepAliveRequestCount = 0;
+
             HasConnection = false;
         }
 
@@ -598,15 +600,16 @@ namespace Yove.Http
 
                 Close();
 
+                Content?.Dispose();
+
+                Content = null;
                 Proxy = null;
-                _response = null;
                 Headers = null;
                 TempHeaders = null;
                 Cookies = null;
                 Connection = null;
                 NetworkStream = null;
                 CommonStream = null;
-                Content = null;
             }
         }
 

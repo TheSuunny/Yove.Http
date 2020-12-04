@@ -236,8 +236,8 @@ namespace Yove.Http.Proxy
 
         private IPAddress GetHost(string host)
         {
-            if (IPAddress.TryParse(host, out IPAddress Ip))
-                return Ip;
+            if (IPAddress.TryParse(host, out IPAddress ip))
+                return ip;
 
             return Dns.GetHostAddresses(host)[0];
         }

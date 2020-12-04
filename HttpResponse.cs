@@ -18,7 +18,7 @@ namespace Yove.Http
         private Receiver _content { get; set; }
 
         public NameValueCollection Headers = new NameValueCollection();
-        public NameValueCollection Cookies { get; set; }
+        public NameValueCollection Cookies = new NameValueCollection();
 
         public string ContentType { get; private set; }
         public string ContentEncoding { get; private set; }
@@ -37,6 +37,8 @@ namespace Yove.Http
         public HttpMethod Method { get; private set; }
         public Encoding CharacterSet { get; private set; }
         public Uri Address { get; private set; }
+
+        public TimeSpan TimeResponse { get; internal set; }
 
         public string Body { get; private set; }
 
@@ -109,9 +111,6 @@ namespace Yove.Http
 
             Method = httpClient.Method;
             Address = httpClient.Address;
-
-            if (_request.EnableCookies && _request.Cookies != null)
-                Cookies = _request.Cookies;
 
             _content = new Receiver(_request.Connection.ReceiveBufferSize, _request.CommonStream);
 
