@@ -53,6 +53,8 @@ namespace Yove.Http
 
         public Uri Address { get; private set; }
 
+        public CancellationToken CancellationToken { get; set; }
+
         internal TcpClient Connection { get; set; }
         internal NetworkStream NetworkStream { get; set; }
         internal Stream CommonStream { get; set; }
@@ -124,12 +126,28 @@ namespace Yove.Http
                 Cookies = new NameValueCollection();
         }
 
+        public HttpClient(CancellationToken token) : this()
+        {
+            if (token == null)
+                throw new ArgumentNullException("Token cannot be null");
+
+            CancellationToken = token;
+        }
+
         public HttpClient(string baseUrl)
         {
             BaseUrl = baseUrl;
 
             if (EnableCookies && Cookies == null)
                 Cookies = new NameValueCollection();
+        }
+
+        public HttpClient(string baseUrl, CancellationToken token) : this(baseUrl)
+        {
+            if (token == null)
+                throw new ArgumentNullException("Token cannot be null");
+
+            CancellationToken = token;
         }
 
         public async Task<HttpResponse> Post(string url)
@@ -214,6 +232,16 @@ namespace Yove.Http
             if (string.IsNullOrEmpty(url))
                 throw new ArgumentNullException("URL is null or empty.");
 
+            if (CancellationToken != null && !CancellationToken.IsCancellationRequested)
+            {
+                CancellationToken.Register(() =>
+                {
+                    _reconnectCount = ReconnectLimit;
+
+                    Close();
+                });
+            }
+
             if ((!url.StartsWith("https://") && !url.StartsWith("http://")) && !string.IsNullOrEmpty(BaseUrl))
                 url = $"{BaseUrl.TrimEnd('/')}/{url}";
 
@@ -232,7 +260,7 @@ namespace Yove.Http
             {
                 Close();
 
-                this.Address = new UriBuilder(url).Uri;
+                Address = new UriBuilder(url).Uri;
 
                 try
                 {
@@ -552,6 +580,26 @@ namespace Yove.Http
                 throw new ArgumentNullException("Value is null or empty.");
 
             TempHeaders.Add(key, value);
+        }
+
+        public void AddRawCookies(string source)
+        {
+            if (string.IsNullOrEmpty(source))
+                throw new ArgumentNullException("Value is null or empty.");
+
+            if (!EnableCookies)
+                throw new Exception("Cookies is disabled.");
+
+            if (source.Contains("Cookie:"))
+                source = source.Replace("Cookie:", "").Trim();
+
+            foreach (string cookie in source.Split(';'))
+            {
+                string key = cookie.Split('=')[0]?.Trim();
+                string value = cookie.Split('=')[1]?.Trim();
+
+                Cookies[key] = value;
+            }
         }
 
         private async Task<HttpResponse> Reconnect(HttpMethod method, string url, HttpContent body = null)

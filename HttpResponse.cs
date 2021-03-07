@@ -35,11 +35,12 @@ namespace Yove.Http
 
         public HttpStatusCode StatusCode { get; private set; }
         public HttpMethod Method { get; private set; }
-        public Encoding CharacterSet { get; private set; }
+        public Encoding CharacterSet { get; private set; } = Encoding.Default;
         public Uri Address { get; private set; }
 
         public TimeSpan TimeResponse { get; internal set; }
 
+        private MemoryStream _sourceBody = null;
         public string Body { get; private set; }
 
         public JToken Json
@@ -123,7 +124,16 @@ namespace Yove.Http
             }
 
             ProtocolVersion = HttpUtils.Parser("HTTP/", headerSource, " ")?.Trim();
-            StatusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($"HTTP/{ProtocolVersion} ", headerSource, " ")?.Trim());
+
+            try
+            {
+                StatusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($"HTTP/{ProtocolVersion} ", headerSource, " ")?.Trim());
+            }
+            catch
+            {
+                StatusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($"HTTP/{ProtocolVersion} ", headerSource, "\n")?.Trim());
+            }
+
             ContentType = HttpUtils.Parser("Content-Type: ", headerSource, "\n")?.Trim();
             ContentEncoding = HttpUtils.Parser("Content-Encoding: ", headerSource, "\n")?.Trim();
             Location = HttpUtils.Parser("Location: ", headerSource, "\n")?.Trim();
@@ -184,7 +194,7 @@ namespace Yove.Http
 
                 if (!string.IsNullOrEmpty(key))
                 {
-                    if (key.Contains("Set-Cookie"))
+                    if (key.ToLower().Contains("set-cookie"))
                     {
                         string cookie = value.TrimEnd(';').Split(';')[0];
 
@@ -220,44 +230,45 @@ namespace Yove.Http
 
         internal async Task<MemoryStream> LoadBody()
         {
-            MemoryStream stream = null;
-
-            if (Headers["Content-Encoding"] != null)
+            if (_sourceBody == null)
             {
-                if (Headers["Transfer-Encoding"] != null)
-                    stream = await ReceiveZipBody(true);
-
-                if (stream == null && ContentLength.HasValue)
-                    stream = await ReceiveZipBody(false);
-
-                if (stream == null)
+                if (Headers["Content-Encoding"] != null)
                 {
-                    using (StreamWrapper streamWrapper = new StreamWrapper(_request.CommonStream, _content))
+                    if (Headers["Transfer-Encoding"] != null)
+                        _sourceBody = await ReceiveZipBody(true);
+
+                    if (_sourceBody == null && ContentLength.HasValue)
+                        _sourceBody = await ReceiveZipBody(false);
+
+                    if (_sourceBody == null)
                     {
-                        using (Stream gZipStream = GetZipStream(streamWrapper))
-                            stream = await ReceiveUnsizeBody(gZipStream);
+                        using (StreamWrapper streamWrapper = new StreamWrapper(_request.CommonStream, _content))
+                        {
+                            using (Stream gZipStream = GetZipStream(streamWrapper))
+                                _sourceBody = await ReceiveUnsizeBody(gZipStream);
+                        }
                     }
+                }
+
+                if (_sourceBody == null && Headers["Transfer-Encoding"] != null)
+                    _sourceBody = await ReceiveStandartBody(true);
+
+                if (_sourceBody == null && ContentLength.HasValue)
+                    _sourceBody = await ReceiveStandartBody(false);
+
+                if (_sourceBody == null)
+                    _sourceBody = await ReceiveUnsizeBody(_request.CommonStream);
+
+                if (_sourceBody != null)
+                {
+                    _sourceBody.Position = 0;
+
+                    if (Body == null)
+                        Body = CharacterSet.GetString(_sourceBody.ToArray(), 0, (int)_sourceBody.Length);
                 }
             }
 
-            if (stream == null && Headers["Transfer-Encoding"] != null)
-                stream = await ReceiveStandartBody(true);
-
-            if (stream == null && ContentLength.HasValue)
-                stream = await ReceiveStandartBody(false);
-
-            if (stream == null)
-                stream = await ReceiveUnsizeBody(_request.CommonStream);
-
-            if (stream != null)
-            {
-                stream.Position = 0;
-
-                if (Body == null)
-                    Body = CharacterSet.GetString(stream.ToArray(), 0, (int)stream.Length);
-            }
-
-            return stream;
+            return _sourceBody;
         }
 
         private Stream GetZipStream(Stream inputStream)
@@ -512,12 +523,12 @@ namespace Yove.Http
             }
         }
 
-        public string Parser(string start, string end)
+        public string Parser(string start, string end, bool removeSpace = false)
         {
             if (string.IsNullOrEmpty(start) || string.IsNullOrEmpty(end))
                 throw new ArgumentNullException("Start or End is null or empty.");
 
-            return HttpUtils.Parser(start, Body, end);
+            return HttpUtils.Parser(start, Body, end, removeSpace);
         }
 
         public async Task<string> ToFile(string localPath, string filename = null)

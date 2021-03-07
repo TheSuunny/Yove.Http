@@ -5,10 +5,13 @@ namespace Yove.Http
 {
     public class HttpUtils
     {
-        public static string Parser(string start, string body, string end)
+        public static string Parser(string start, string body, string end, bool removeSpace = false)
         {
             try
             {
+                if (removeSpace)
+                    body = body.Replace("\n", "").Replace("\r\n", "").Replace(" ", "");
+
                 if (!body.Contains(start))
                     return null;
 
