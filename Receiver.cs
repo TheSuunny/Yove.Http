@@ -4,16 +4,13 @@ using System.Text;
 
 namespace Yove.Http
 {
-    public class Receiver
+    internal class Receiver
     {
-        private byte[] _buffer { get; set; }
+        private byte[] _buffer { get; }
         private byte[] _temporaryBuffer = new byte[1024];
-
-        private Stream _stream { get; set; }
-
+        private Stream _stream { get; }
         private int _length { get; set; }
-
-        public int Position { get; private set; }
+        public int Position { get; set; }
 
         public bool HasData
         {
@@ -53,10 +50,10 @@ namespace Yove.Http
 
                 if (currentPosition == _temporaryBuffer.Length)
                 {
-                    byte[] _temporaryBufferX2 = new byte[_temporaryBuffer.Length * 2];
+                    byte[] temporaryBufferX2 = new byte[_temporaryBuffer.Length * 2];
 
-                    _temporaryBuffer.CopyTo(_temporaryBufferX2, 0);
-                    _temporaryBuffer = _temporaryBufferX2;
+                    _temporaryBuffer.CopyTo(temporaryBufferX2, 0);
+                    _temporaryBuffer = temporaryBufferX2;
                 }
             }
 

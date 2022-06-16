@@ -123,8 +123,8 @@ namespace Yove.Http
 
     internal class EventStreamWrapper : Stream
     {
-        private Stream _stream { get; set; }
-        private int _bufferSize { get; set; }
+        private Stream _stream { get; }
+        private int _bufferSize { get; }
 
         public Action<int> ReadBytesCallback { get; set; }
         public Action<int> WriteBytesCallback { get; set; }
@@ -204,12 +204,11 @@ namespace Yove.Http
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            int BytesRead = _stream.Read(buffer, offset, count);
+            int bytesRead = _stream.Read(buffer, offset, count);
 
-            if (ReadBytesCallback != null)
-                ReadBytesCallback(BytesRead);
+            ReadBytesCallback?.Invoke(bytesRead);
 
-            return BytesRead;
+            return bytesRead;
         }
 
         public override void Write(byte[] buffer, int offset, int count)
@@ -220,7 +219,7 @@ namespace Yove.Http
 
                 do
                 {
-                    int writeBytes = 0;
+                    int writeBytes;
 
                     if (count >= _bufferSize)
                     {

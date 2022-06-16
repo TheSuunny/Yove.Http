@@ -1,5 +1,5 @@
-using System.IO;
 using System;
+using System.IO;
 
 namespace Yove.Http
 {
@@ -10,20 +10,17 @@ namespace Yove.Http
         public FileContent(string path, int bufferSize = 32768)
         {
             if (string.IsNullOrEmpty(path))
-                throw new ArgumentNullException("Path is null or empty.");
+                throw new NullReferenceException("Path is null or empty.");
 
-            this.Content = new FileStream(path, FileMode.Open, FileAccess.Read);
-            this.BufferSize = bufferSize;
-            this.Path = path;
+            Content = new FileStream(path, FileMode.Open, FileAccess.Read);
+            BufferSize = bufferSize;
+            Path = path;
         }
 
         public FileContent(Stream stream, int bufferSize = 32768)
         {
-            if (stream == null)
-                throw new ArgumentNullException("Stream is null.");
-
-            this.Content = stream;
-            this.BufferSize = bufferSize;
+            Content = stream ?? throw new NullReferenceException("Stream is null.");
+            BufferSize = bufferSize;
         }
     }
 }

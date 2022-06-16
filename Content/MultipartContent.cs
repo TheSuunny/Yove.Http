@@ -1,16 +1,16 @@
 using System;
-using System.IO;
-using System.Collections.Generic;
-using System.Text;
 using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
 
 namespace Yove.Http
 {
-    public class MultipartContent : HttpContent, IEnumerable<HttpContent>
+    public class MultipartContent : HttpContent, IEnumerable<HttpContent>, IDisposable
     {
-        private List<Element> _elements = new List<Element>();
+        private readonly List<Element> _elements = new();
 
-        private string _boundary { get; set; }
+        private string _boundary { get; }
 
         private sealed class Element
         {
@@ -66,7 +66,7 @@ namespace Yove.Http
         public MultipartContent(string boundary)
         {
             if (string.IsNullOrEmpty(boundary))
-                throw new ArgumentNullException("Boundary is null or empty.");
+                throw new NullReferenceException("Boundary is null or empty.");
 
             _boundary = boundary;
             ContentType = $"multipart/form-data; boundary={boundary}";
@@ -75,10 +75,10 @@ namespace Yove.Http
         public void Add(string name, HttpContent content)
         {
             if (string.IsNullOrEmpty(name))
-                throw new ArgumentNullException("Name is null or empty.");
+                throw new NullReferenceException("Name is null or empty.");
 
             if (content == null)
-                throw new ArgumentNullException("Content is null.");
+                throw new NullReferenceException("Content is null.");
 
             _elements.Add(new Element
             {
@@ -90,13 +90,13 @@ namespace Yove.Http
         public void Add(string name, HttpContent content, string filename)
         {
             if (string.IsNullOrEmpty(name))
-                throw new ArgumentNullException("Name is null or empty.");
+                throw new NullReferenceException("Name is null or empty.");
 
             if (string.IsNullOrEmpty(filename))
-                throw new ArgumentNullException("Filename is null or empty.");
+                throw new NullReferenceException("Filename is null or empty.");
 
             if (content == null)
-                throw new ArgumentNullException("Content is null.");
+                throw new NullReferenceException("Content is null.");
 
             content.ContentType = "multipart/form-data";
 
@@ -111,16 +111,16 @@ namespace Yove.Http
         public void Add(string name, string contentType, HttpContent content, string filename)
         {
             if (string.IsNullOrEmpty(name))
-                throw new ArgumentNullException("Name is null or empty.");
+                throw new NullReferenceException("Name is null or empty.");
 
             if (string.IsNullOrEmpty(filename))
-                throw new ArgumentNullException("Filename is null or empty.");
+                throw new NullReferenceException("Filename is null or empty.");
 
             if (string.IsNullOrEmpty(contentType))
-                throw new ArgumentNullException("ContentType is null or empty.");
+                throw new NullReferenceException("ContentType is null or empty.");
 
             if (content == null)
-                throw new ArgumentNullException("Content is null.");
+                throw new NullReferenceException("Content is null.");
 
             content.ContentType = contentType;
 
@@ -135,18 +135,18 @@ namespace Yove.Http
         public void Add(string name, FileContent content, string filename = null)
         {
             if (string.IsNullOrEmpty(name))
-                throw new ArgumentNullException("Name is null or empty.");
+                throw new NullReferenceException("Name is null or empty.");
 
             if (filename == null)
             {
                 filename = Path.GetFileName(content.Path);
 
                 if (string.IsNullOrEmpty(filename))
-                    throw new ArgumentNullException("Path is null or empty.");
+                    throw new NullReferenceException("Path is null or empty.");
             }
 
             if (content == null)
-                throw new ArgumentNullException("Content is null.");
+                throw new NullReferenceException("Content is null.");
 
             content.ContentType = "multipart/form-data";
 
@@ -161,19 +161,19 @@ namespace Yove.Http
         public void Add(string name, string contentType, FileContent content, string filename = null)
         {
             if (string.IsNullOrEmpty(name))
-                throw new ArgumentNullException("Name is null or empty.");
+                throw new NullReferenceException("Name is null or empty.");
 
             if (filename == null)
             {
                 if (string.IsNullOrEmpty(filename))
-                    throw new ArgumentNullException("Path is null or empty.");
+                    throw new NullReferenceException("Path is null or empty.");
             }
 
             if (string.IsNullOrEmpty(contentType))
-                throw new ArgumentNullException("ContentType is null or empty.");
+                throw new NullReferenceException("ContentType is null or empty.");
 
             if (content == null)
-                throw new ArgumentNullException("Content is null.");
+                throw new NullReferenceException("Content is null.");
 
             content.ContentType = contentType;
 
@@ -191,7 +191,7 @@ namespace Yove.Http
                 throw new ObjectDisposedException("Content disposed or empty.");
 
             if (commonStream == null)
-                throw new ArgumentNullException("CommonStream is null.");
+                throw new NullReferenceException("CommonStream is null.");
 
             byte[] lineBytes = Encoding.ASCII.GetBytes("\r\n");
             byte[] boundaryBytes = Encoding.ASCII.GetBytes($"--{_boundary}\r\n");
@@ -200,7 +200,7 @@ namespace Yove.Http
             {
                 commonStream.Write(boundaryBytes, 0, boundaryBytes.Length);
 
-                string field = string.Empty;
+                string field;
 
                 if (item.IsFieldFile)
                     field = $"Content-Disposition: form-data; name=\"{item.Name}\"; filename=\"{item.Filename}\"\r\nContent-Type: {item.Content.ContentType}\r\n\r\n";
@@ -219,22 +219,9 @@ namespace Yove.Http
             commonStream.Write(boundaryBytes, 0, boundaryBytes.Length);
         }
 
-        public override void Dispose()
-        {
-            if (_elements.Count > 0)
-            {
-                foreach (Element item in _elements)
-                    item.Content.Dispose();
-
-                _elements.Clear();
-            }
-        }
-
         ~MultipartContent()
         {
             Dispose();
-
-            GC.SuppressFinalize(this);
         }
 
         public IEnumerator<HttpContent> GetEnumerator()
@@ -245,6 +232,17 @@ namespace Yove.Http
         IEnumerator IEnumerable.GetEnumerator()
         {
             throw new NotImplementedException();
+        }
+
+        public override void Dispose()
+        {
+            if (_elements.Count > 0)
+            {
+                foreach (Element item in _elements)
+                    item.Content.Dispose();
+
+                _elements.Clear();
+            }
         }
     }
 }

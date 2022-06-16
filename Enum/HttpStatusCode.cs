@@ -18,7 +18,6 @@ namespace Yove.Http
         IMUsed = 226,
         MultipleChoices = 300,
         MovedPermanently = 301,
-        MovedTemporarily = 302,
         Found = 302,
         SeeOther = 303,
         NotModified = 304,

@@ -25,17 +25,17 @@ namespace Yove.Http
         public ByteContent(byte[] content, int offset, int count)
         {
             if (content == null || offset < 0 || count < 0 || offset > content.Length || count > (content.Length - offset))
-                throw new ArgumentNullException("Parameters is empty or invalid value.");
+                throw new NullReferenceException("Parameters is empty or invalid value.");
 
-            this.Content = content;
-            this.Offset = offset;
-            this.Count = count;
+            Content = content;
+            Offset = offset;
+            Count = count;
         }
 
         public override void Write(Stream commonStream)
         {
             if (commonStream == null)
-                throw new ArgumentNullException("Stream is empty.");
+                throw new NullReferenceException("Stream is empty.");
 
             commonStream.Write(Content, Offset, Count);
         }

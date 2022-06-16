@@ -1,10 +1,13 @@
-using Fody;
 using System;
 using System.Net;
-using System.Text;
 using System.Net.Sockets;
-using System.Threading.Tasks;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
+
+using Fody;
+
+using Yove.Http.Exceptions;
 
 namespace Yove.Http.Proxy
 {
@@ -28,49 +31,49 @@ namespace Yove.Http.Proxy
 
         public ProxyClient(string proxy, ProxyType type)
         {
-            if (string.IsNullOrEmpty(proxy) || !proxy.Contains(":"))
-                throw new ArgumentNullException("Proxy is null or empty or invalid type.");
+            if (string.IsNullOrEmpty(proxy) || !proxy.Contains(':'))
+                throw new NullReferenceException("Proxy is null or empty or invalid type.");
 
             string host = proxy.Split(':')[0];
             int port = Convert.ToInt32(proxy.Split(':')[1]);
 
             if (port < 0 || port > 65535)
-                throw new ArgumentNullException("Port goes beyond < 0 or > 65535.");
+                throw new NullReferenceException("Port goes beyond < 0 or > 65535.");
 
-            this.Host = host;
-            this.Port = port;
-            this.Type = type;
+            Host = host;
+            Port = port;
+            Type = type;
         }
 
         internal async Task<TcpClient> CreateConnection(string destinationHost, int destinationPort)
         {
             if (string.IsNullOrEmpty(Host))
-                throw new ArgumentNullException("Host is null or empty.");
+                throw new NullReferenceException("Host is null or empty.");
 
             if (Port < 0 || Port > 65535)
-                throw new ArgumentNullException("Port goes beyond < 0 or > 65535.");
+                throw new NullReferenceException("Port goes beyond < 0 or > 65535.");
 
-            TcpClient tcpClient = new TcpClient
+            TcpClient tcpClient = new()
             {
                 ReceiveTimeout = ReadWriteTimeOut,
                 SendTimeout = ReadWriteTimeOut
             };
 
-            TaskCompletionSource<bool> completionSource = new TaskCompletionSource<bool>();
+            using CancellationTokenSource cancellationToken = new(TimeSpan.FromMilliseconds(TimeOut));
 
-            using (CancellationTokenSource cancellationToken = new CancellationTokenSource(TimeSpan.FromMilliseconds(ReadWriteTimeOut)))
+            ValueTask connectionTask = tcpClient.ConnectAsync(Host, Port, cancellationToken.Token);
+
+            try
             {
-                Task connectionTask = tcpClient.ConnectAsync(Host, Port);
-
-                using (cancellationToken.Token.Register(() => completionSource.TrySetResult(true)))
-                {
-                    if (connectionTask != await Task.WhenAny(connectionTask, completionSource.Task))
-                        throw new ProxyException($"Failed Connection to proxy - {Host}:{Port}");
-                }
+                await connectionTask;
+            }
+            catch
+            {
+                throw new HttpProxyException($"Failed Connection to proxy: {Host}:{Port}");
             }
 
             if (!tcpClient.Connected)
-                throw new ProxyException($"Failed Connection to proxy - {Host}:{Port}");
+                throw new HttpProxyException($"Failed Connection to proxy: {Host}:{Port}");
 
             NetworkStream networkStream = tcpClient.GetStream();
 
@@ -80,7 +83,7 @@ namespace Yove.Http.Proxy
             {
                 tcpClient.Close();
 
-                throw new ProxyException($"Could not connect to proxy server | Response - {connection}");
+                throw new HttpProxyException($"Could not connect to proxy server | Response - {connection}");
             }
 
             return tcpClient;
@@ -88,17 +91,13 @@ namespace Yove.Http.Proxy
 
         private async Task<ConnectionResult> SendCommand(NetworkStream networkStream, string destinationHost, int destinationPort)
         {
-            switch (Type)
+            return Type switch
             {
-                case ProxyType.Http:
-                    return await SendHttp(networkStream, destinationHost, destinationPort);
-                case ProxyType.Socks4:
-                    return await SendSocks4(networkStream, destinationHost, destinationPort);
-                case ProxyType.Socks5:
-                    return await SendSocks5(networkStream, destinationHost, destinationPort);
-                default:
-                    throw new ProxyException("Unsupported proxy type.");
-            }
+                ProxyType.Http => await SendHttp(networkStream, destinationHost, destinationPort),
+                ProxyType.Socks4 => await SendSocks4(networkStream, destinationHost, destinationPort),
+                ProxyType.Socks5 => await SendSocks5(networkStream, destinationHost, destinationPort),
+                _ => throw new HttpProxyException("Unsupported proxy type."),
+            };
         }
 
         private async Task<ConnectionResult> SendHttp(NetworkStream networkStream, string destinationHost, int destinationPort)
@@ -112,7 +111,7 @@ namespace Yove.Http.Proxy
 
             await WaitStream(networkStream);
 
-            StringBuilder responseBuilder = new StringBuilder();
+            StringBuilder responseBuilder = new();
 
             byte[] buffer = new byte[100];
 
@@ -124,9 +123,9 @@ namespace Yove.Http.Proxy
             }
 
             if (responseBuilder.Length == 0)
-                throw new Exception("Received empty response.");
+                throw new HttpProxyException("Received empty response.");
 
-            HttpStatusCode statusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($" ", responseBuilder.ToString(), " ")?.Trim());
+            HttpStatusCode statusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser(" ", responseBuilder.ToString(), " ")?.Trim());
 
             if (statusCode != HttpStatusCode.OK)
                 return ConnectionResult.InvalidProxyResponse;
@@ -143,12 +142,12 @@ namespace Yove.Http.Proxy
 
             byte[] address = GetIPAddressBytes(destinationHost);
             byte[] port = GetPortBytes(destinationPort);
-            byte[] userId = new byte[0];
+            byte[] userId = Array.Empty<byte>();
 
             byte[] request = new byte[9];
             byte[] response = new byte[8];
 
-            request[0] = (byte)4;
+            request[0] = 4;
             request[1] = 0x01;
             address.CopyTo(request, 4);
             port.CopyTo(request, 2);
@@ -172,9 +171,9 @@ namespace Yove.Http.Proxy
             byte[] response = new byte[255];
             byte[] auth = new byte[3];
 
-            auth[0] = (byte)5;
-            auth[1] = (byte)1;
-            auth[2] = (byte)0;
+            auth[0] = 5;
+            auth[1] = 1;
+            auth[2] = 0;
 
             networkStream.Write(auth, 0, auth.Length);
 
@@ -195,7 +194,7 @@ namespace Yove.Http.Proxy
 
             byte[] request = new byte[4 + address.Length + 2];
 
-            request[0] = (byte)5;
+            request[0] = 5;
             request[1] = 0x01;
             request[2] = 0x00;
             request[3] = addressType;
@@ -230,11 +229,11 @@ namespace Yove.Http.Proxy
                     continue;
                 }
 
-                throw new ProxyException($"Timeout waiting for data - {Host}:{Port}");
+                throw new HttpProxyException($"Timeout waiting for data from Address: {Host}:{Port}");
             }
         }
 
-        private IPAddress GetHost(string host)
+        private static IPAddress GetHost(string host)
         {
             if (IPAddress.TryParse(host, out IPAddress ip))
                 return ip;
@@ -242,7 +241,7 @@ namespace Yove.Http.Proxy
             return Dns.GetHostAddresses(host)[0];
         }
 
-        private byte[] GetAddressBytes(byte addressType, string host)
+        private static byte[] GetAddressBytes(byte addressType, string host)
         {
             switch (addressType)
             {
@@ -261,7 +260,7 @@ namespace Yove.Http.Proxy
             }
         }
 
-        private byte GetAddressType(string host)
+        private static byte GetAddressType(string host)
         {
             if (IPAddress.TryParse(host, out IPAddress ip))
             {
@@ -274,11 +273,9 @@ namespace Yove.Http.Proxy
             return ADDRESS_TYPE_DOMAIN_NAME;
         }
 
-        private byte[] GetIPAddressBytes(string destinationHost)
+        private static byte[] GetIPAddressBytes(string destinationHost)
         {
-            IPAddress address = null;
-
-            if (!IPAddress.TryParse(destinationHost, out address))
+            if (!IPAddress.TryParse(destinationHost, out IPAddress address))
             {
                 IPAddress[] ipAddresses = Dns.GetHostAddresses(destinationHost);
 
@@ -289,7 +286,7 @@ namespace Yove.Http.Proxy
             return address?.GetAddressBytes();
         }
 
-        private byte[] GetPortBytes(int port)
+        private static byte[] GetPortBytes(int port)
         {
             byte[] bytes = new byte[2];
 

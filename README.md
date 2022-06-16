@@ -21,9 +21,9 @@ dotnet add package Yove.Http
 ```csharp
 using(HttpClient client = new HttpClient
 {
-    Authorization = $"Bot {Token}", // Add Authorization header
+    Authorization = $"Bearer {Token}", // Add Authorization header
     EnableAutoRedirect = false, // Disable automatic redirection if the server responded with a Location header
-    EnableCookies = false, // Disable cookies
+    EnableCookie = false, // Disable cookie
     EnableProtocolError = false, // Disable exceptions associated with server response
     EnableReconnect = false, // Disable reconnection in case of connection errors or data reading
     ReconnectDelay = 1000, // Delay in attempting a new connection
@@ -33,13 +33,9 @@ using(HttpClient client = new HttpClient
 {
     HttpResponse postResponse = await client.Post("https://example.com/", "name=value");
 
-    JToken jsonContent = postResponse.Json["content"];
-
     string getResponse = await client.GetString("https://example.com/");
 
     JToken getJsonResponse = await client.GetJson("https://example.com/list.json");
-
-    string jsonItem = (string)getJsonResponse["count"];
 }
 ```
 
@@ -73,12 +69,12 @@ HttpClient client = new HttpClient("Base URL")
 ```csharp
 client.DownloadProgressChanged += (s, e) =>
 {
-    Console.WriteLine($"{e.Received} / {e.Total} | {e.ProgressPercentage} | {e.Speed.MegaBytes} MB/s | {e.Speed.GigaBytes} GB/s");
+    Console.WriteLine($"{e.Received} / {e.Total} | {e.ProgressPercentage}");
 };
 
 client.UploadProgressChanged += (s, e) =>
 {
-    Console.WriteLine($"{e.Sent} / {e.Total} | {e.ProgressPercentage} | {e.Speed.MegaBytes} MB/s | {e.Speed.GigaBytes} GB/s");
+    Console.WriteLine($"{e.Sent} / {e.Total} | {e.ProgressPercentage}");
 };
 ```
 
@@ -90,9 +86,9 @@ client.AddTempHeader("Token", Token); // This header will be deleted after the r
 
 client["Token"] = Token;
 
-HttpResponse postResponse = await client.Post("https://example.com/", "name=value");
+HttpResponse response = await client.Post("https://example.com/", "name=value");
 
-string token = postResponse["Token"];
+string token = response["Token"];
 ```
 
 ### Upload file [Multipart]
@@ -112,20 +108,14 @@ HttpResponse uploadResponse = await client.Post("http://example.com/", content);
 ### Http Response
 
 ```csharp
-
 HttpResponse response = await Client.Get("http://example.com/");
 
-string body = response.Body; // Receives the response string body
+string body = await response.Content.ReadAsString();
+MemoryStream stream = await response.Content.ReadAsStream();
+byte[] bytes = await response.Content.ReadAsBytes();
+JToken json = await response.Content.ReadAsJson();
 
-string result = response.Parser("<h1>", "</h1>"); // Parsing HTML body
-
-MemoryStream stream = await response.ToMemoryStream(); // Return the response in MemoryStream
-
-byte[] bytes = await response.ToBytes(); // Return the response in byte[]
-
-string savePath = await response.ToFile("Path to save", "Filename"); // If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
-
-string username = (string)response.Json["users"][0]["username"]; // Return JToken object [JSON]
+string path = await response.ToFile("Path to save", "Filename"); // If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
 ```
 
 ---
@@ -150,10 +140,3 @@ Supports both default requests and WebDAV
 | MOVE      | Move from one URI to another                                                             |
 | LOCK      | Put a lock on the object                                                                 |
 | UNLOCK    | Unlock a resource                                                                        |
-
-
-### Other
-
-If you are missing something in the library, do not be afraid to write me :)
-
-<thesunny@tuta.io>

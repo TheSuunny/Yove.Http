@@ -24,11 +24,11 @@ namespace Yove.Http
 
         public StreamContent(Stream content, int bufferSize = 32768)
         {
-            if (content == null || !content.CanRead || !content.CanSeek)
-                throw new ArgumentNullException("Parameters is empty or invalid value.");
+            if (content?.CanRead != true || !content.CanSeek)
+                throw new NullReferenceException("Parameters is empty or invalid value.");
 
-            this.Content = content;
-            this.BufferSize = bufferSize;
+            Content = content;
+            BufferSize = bufferSize;
         }
 
         public override void Write(Stream commonStream)
@@ -37,7 +37,7 @@ namespace Yove.Http
                 throw new ObjectDisposedException("Content disposed or empty.");
 
             if (commonStream == null)
-                throw new ArgumentNullException("Stream is empty.");
+                throw new NullReferenceException("Stream is empty.");
 
             Content.Position = 0;
 
@@ -56,8 +56,7 @@ namespace Yove.Http
 
         public override void Dispose()
         {
-            if (Content != null)
-                Content.Dispose();
+            Content?.Dispose();
         }
     }
 }

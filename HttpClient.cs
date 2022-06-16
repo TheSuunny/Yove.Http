@@ -1,27 +1,35 @@
 ﻿using System;
-using System.IO;
+using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.IO;
+using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using System.Threading.Tasks;
-using Yove.Http.Proxy;
-using Yove.Http.Events;
-using Newtonsoft.Json.Linq;
-using Fody;
 using System.Threading;
+using System.Threading.Tasks;
+
+using Fody;
+
+using Newtonsoft.Json.Linq;
+
+using Yove.Http.Events;
+using Yove.Http.Exceptions;
+using Yove.Http.Models;
+using Yove.Http.Proxy;
 
 namespace Yove.Http
 {
     [ConfigureAwait(false)]
-    public class HttpClient : IDisposable, ICloneable
+    public class HttpClient : IDisposable
     {
-        public NameValueCollection Headers = new NameValueCollection();
-        public NameValueCollection TempHeaders = new NameValueCollection();
+        #region Public
+        public NameValueCollection Headers = new();
+        public NameValueCollection TempHeaders = new();
 
-        public NameValueCollection Cookies { get; set; }
+        public NameValueCollection Cookie { get; set; }
 
         public string BaseUrl { get; set; }
         public string Username { get; set; }
@@ -34,50 +42,30 @@ namespace Yove.Http
 
         public Encoding CharacterSet { get; set; }
 
-        public int KeepAliveTimeOut { get; set; } = 60000;
-        public int KeepAliveMaxRequest { get; set; } = 100;
-
-        public bool KeepAlive { get; set; } = true;
+        public bool KeepAlive { get; set; }
         public bool EnableEncodingContent { get; set; } = true;
         public bool EnableAutoRedirect { get; set; } = true;
+        public bool RedirectOnlyIfOtherDomain { get; set; }
         public bool EnableProtocolError { get; set; } = true;
-        public bool EnableCookies { get; set; } = true;
+        public bool EnableCookie { get; set; } = true;
         public bool EnableReconnect { get; set; } = true;
         public bool HasConnection { get; set; }
         public bool IsDisposed { get; set; }
 
+        public int KeepAliveTimeOut { get; set; } = 60000;
+        public int KeepAliveMaxRequest { get; set; } = 100;
+        public int RedirectLimit { get; set; } = 3;
         public int ReconnectLimit { get; set; } = 3;
         public int ReconnectDelay { get; set; } = 1000;
         public int TimeOut { get; set; } = 60000;
         public int ReadWriteTimeOut { get; set; } = 60000;
+        public int MaxReciveBufferSize { get; set; } = 2147483647;
 
         public Uri Address { get; private set; }
 
         public CancellationToken CancellationToken { get; set; }
 
-        internal TcpClient Connection { get; set; }
-        internal NetworkStream NetworkStream { get; set; }
-        internal Stream CommonStream { get; set; }
-        internal HttpMethod Method { get; set; }
-        internal HttpContent Content { get; set; }
-
-        internal RemoteCertificateValidationCallback AcceptAllCertificationsCallback = new RemoteCertificateValidationCallback(AcceptAllCertifications);
-
-        private HttpResponse _response { get; set; }
-
-        private ProxyClient _proxy { get; set; }
-
-        private int _reconnectCount { get; set; }
-        private int _keepAliveRequestCount { get; set; }
-
-        private DateTime _whenConnectionIdle { get; set; }
-
-        private long _sentBytes { get; set; }
-        private long _totalSentBytes { get; set; }
-        private long _receivedBytes { get; set; }
-        private long _totalReceivedBytes { get; set; }
-
-        private bool _isReceivedHeader { get; set; }
+        public SslProtocols DefaultSslProtocols { get; set; } = SslProtocols.None;
 
         public EventHandler<UploadEvent> UploadProgressChanged { get; set; }
         public EventHandler<DownloadEvent> DownloadProgressChanged { get; set; }
@@ -87,7 +75,7 @@ namespace Yove.Http
             get
             {
                 if (string.IsNullOrEmpty(key))
-                    throw new ArgumentNullException("Key is null or empty.");
+                    throw new NullReferenceException("Key is null or empty.");
 
                 return Headers[key];
             }
@@ -102,17 +90,47 @@ namespace Yove.Http
         {
             get
             {
-                return _proxy;
+                return _proxyClient;
             }
             set
             {
-                _proxy = value;
+                if (_proxyClient != null && HasConnection)
+                    Close();
 
-                HasConnection = false;
+                _proxyClient = value;
             }
         }
 
-        private bool CanReconnect
+        #endregion
+
+        #region Private & Internal
+
+        internal TcpClient Connection { get; set; }
+        internal NetworkStream NetworkStream { get; set; }
+        internal Stream CommonStream { get; set; }
+        internal HttpMethod Method { get; set; }
+        internal HttpContent Content { get; set; }
+
+        internal List<RedirectItem> RedirectHistory = new();
+
+        internal RemoteCertificateValidationCallback AcceptAllCertificationsCallback = new(AcceptAllCertifications);
+
+        private HttpResponse _response { get; set; }
+        private ProxyClient _proxyClient { get; set; }
+
+        private int _reconnectCount { get; set; }
+        private int _keepAliveRequestCount { get; set; }
+        private int _redirectCount { get; set; }
+
+        private DateTime _whenConnectionIdle { get; set; }
+
+        private long _sentBytes { get; set; }
+        private long _receivedBytes { get; set; }
+
+        private bool _isReceivedHeader { get; set; }
+        private long _headerLength { get; set; }
+
+        private bool _canReconnect
         {
             get
             {
@@ -120,16 +138,18 @@ namespace Yove.Http
             }
         }
 
+        #endregion
+
         public HttpClient()
         {
-            if (EnableCookies && Cookies == null)
-                Cookies = new NameValueCollection();
+            if (EnableCookie && Cookie == null)
+                Cookie = new NameValueCollection();
         }
 
         public HttpClient(CancellationToken token) : this()
         {
-            if (token == null)
-                throw new ArgumentNullException("Token cannot be null");
+            if (token == default)
+                throw new NullReferenceException("Token cannot be null");
 
             CancellationToken = token;
         }
@@ -138,14 +158,14 @@ namespace Yove.Http
         {
             BaseUrl = baseUrl;
 
-            if (EnableCookies && Cookies == null)
-                Cookies = new NameValueCollection();
+            if (EnableCookie && Cookie == null)
+                Cookie = new NameValueCollection();
         }
 
         public HttpClient(string baseUrl, CancellationToken token) : this(baseUrl)
         {
-            if (token == null)
-                throw new ArgumentNullException("Token cannot be null");
+            if (token == default)
+                throw new NullReferenceException("Token cannot be null");
 
             CancellationToken = token;
         }
@@ -191,37 +211,37 @@ namespace Yove.Http
 
         public async Task<string> GetString(string url)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, url);
+            HttpResponse response = await Raw(HttpMethod.GET, url);
 
-            return Response.Body;
+            return await response.Content.ReadAsString();
         }
 
         public async Task<JToken> GetJson(string url)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, url);
+            HttpResponse response = await Raw(HttpMethod.GET, url);
 
-            return JToken.Parse(Response.Body);
+            return await response.Content.ReadAsJson();
         }
 
         public async Task<byte[]> GetBytes(string url)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, url);
+            HttpResponse response = await Raw(HttpMethod.GET, url);
 
-            return await Response.ToBytes();
+            return await response.Content.ReadAsBytes();
         }
 
         public async Task<MemoryStream> GetStream(string url)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, url);
+            HttpResponse response = await Raw(HttpMethod.GET, url);
 
-            return await Response.ToMemoryStream();
+            return await response.Content.ReadAsStream();
         }
 
         public async Task<string> GetToFile(string url, string path, string filename = null)
         {
-            HttpResponse Response = await Raw(HttpMethod.GET, url);
+            HttpResponse response = await Raw(HttpMethod.GET, url);
 
-            return await Response.ToFile(path, filename);
+            return await response.ToFile(path, filename);
         }
 
         public async Task<HttpResponse> Raw(HttpMethod method, string url, HttpContent body = null)
@@ -230,11 +250,15 @@ namespace Yove.Http
                 throw new ObjectDisposedException("Object disposed.");
 
             if (string.IsNullOrEmpty(url))
-                throw new ArgumentNullException("URL is null or empty.");
+                throw new NullReferenceException("URL is null or empty.");
 
-            if (CancellationToken != null && !CancellationToken.IsCancellationRequested)
+            CancellationTokenRegistration ctr = default;
+
+            if (CancellationToken != default)
             {
-                CancellationToken.Register(() =>
+                CancellationToken.ThrowIfCancellationRequested();
+
+                ctr = CancellationToken.Register(() =>
                 {
                     _reconnectCount = ReconnectLimit;
 
@@ -242,187 +266,180 @@ namespace Yove.Http
                 });
             }
 
-            if ((!url.StartsWith("https://") && !url.StartsWith("http://")) && !string.IsNullOrEmpty(BaseUrl))
-                url = $"{BaseUrl.TrimEnd('/')}/{url}";
-
-            if (!EnableCookies && Cookies != null)
-                Cookies = null;
-
-            Method = method;
-            Content = body;
-
-            _receivedBytes = 0;
-            _sentBytes = 0;
-
-            TimeSpan timeResponseStart = DateTime.Now.TimeOfDay;
-
-            if (CheckKeepAlive() || Address.Host != new UriBuilder(url).Host)
+            try
             {
-                Close();
+                if (!url.StartsWith("https://") && !url.StartsWith("http://") && !string.IsNullOrEmpty(BaseUrl))
+                    url = $"{BaseUrl.TrimEnd('/')}/{url}";
 
-                Address = new UriBuilder(url).Uri;
+                if (!EnableCookie && Cookie != null)
+                    Cookie = null;
+
+                Method = method;
+                Content = body;
+
+                _receivedBytes = 0;
+                _sentBytes = 0;
+
+                TimeSpan timeResponseStart = DateTime.Now.TimeOfDay;
+
+                if (CheckKeepAlive() || Address.Host != new UriBuilder(url).Host)
+                {
+                    Close();
+
+                    Address = new UriBuilder(url).Uri;
+
+                    try
+                    {
+                        Connection = await CreateConnection(Address.Host, Address.Port);
+
+                        NetworkStream = Connection.GetStream();
+
+                        if (Address.Scheme.StartsWith("https"))
+                        {
+                            SslStream sslStream = new(NetworkStream, false, AcceptAllCertificationsCallback);
+
+                            await sslStream.AuthenticateAsClientAsync(Address.Host, null, DefaultSslProtocols, false);
+
+                            CommonStream = sslStream;
+                        }
+                        else
+                        {
+                            CommonStream = NetworkStream;
+                        }
+
+                        HasConnection = true;
+
+                        if (DownloadProgressChanged != null || UploadProgressChanged != null)
+                        {
+                            EventStreamWrapper eventStream = new(CommonStream, Connection.SendBufferSize);
+
+                            if (UploadProgressChanged != null)
+                            {
+                                eventStream.WriteBytesCallback = (e) =>
+                                {
+                                    _sentBytes += e;
+
+                                    UploadProgressChanged?.Invoke(this, new UploadEvent(_sentBytes - _headerLength, Content.ContentLength));
+                                };
+                            }
+
+                            if (DownloadProgressChanged != null)
+                            {
+                                eventStream.ReadBytesCallback = (e) =>
+                                {
+                                    _receivedBytes += e;
+
+                                    if (_isReceivedHeader)
+                                        DownloadProgressChanged?.Invoke(this, new DownloadEvent(_receivedBytes - _response.HeaderLength, _response.ContentLength));
+                                };
+                            }
+
+                            CommonStream = eventStream;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (ex?.InnerException?.Message == "bad protocol version")
+                            DefaultSslProtocols = SslProtocols.Tls11;
+
+                        if (_canReconnect)
+                            return await Reconnect(method, url, body);
+
+                        throw new HttpRequestException($"Failed Connection to Address: {Address.AbsoluteUri}", ex);
+                    }
+                }
+                else
+                {
+                    Address = new UriBuilder(url).Uri;
+                }
 
                 try
                 {
-                    Connection = await CreateConnection(Address.Host, Address.Port);
+                    long contentLength = 0L;
+                    string contentType = null;
 
-                    NetworkStream = Connection.GetStream();
-
-                    if (Address.Scheme.StartsWith("https"))
+                    if (Method != HttpMethod.GET && Content != null)
                     {
-                        SslStream sslStream = new SslStream(NetworkStream, false, AcceptAllCertificationsCallback);
-
-                        await sslStream.AuthenticateAsClientAsync(Address.Host, null, SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls |
-                            SslProtocols.Ssl3 | SslProtocols.Ssl2 | SslProtocols.Tls, false);
-
-                        CommonStream = sslStream;
-                    }
-                    else
-                    {
-                        CommonStream = NetworkStream;
+                        contentType = Content.ContentType;
+                        contentLength = Content.ContentLength;
                     }
 
-                    HasConnection = true;
+                    string stringHeader = $"{Method} {Address.PathAndQuery} HTTP/1.1\r\n{GenerateHeaders(Method, contentLength, contentType)}";
+                    byte[] headersBytes = Encoding.ASCII.GetBytes(stringHeader);
 
-                    if (DownloadProgressChanged != null || UploadProgressChanged != null)
-                    {
-                        EventStreamWrapper eventStream = new EventStreamWrapper(CommonStream, Connection.SendBufferSize);
+                    _headerLength = headersBytes.Length;
 
-                        if (UploadProgressChanged != null)
-                        {
-                            long speed = 0;
+                    CommonStream.Write(headersBytes, 0, headersBytes.Length);
 
-                            eventStream.WriteBytesCallback = (e) =>
-                            {
-                                speed += e;
-                                _sentBytes += e;
-                            };
-
-                            new Task(async () =>
-                            {
-                                while ((int)(((double)_sentBytes / (double)_totalSentBytes) * 100.0) != 100 && HasConnection)
-                                {
-                                    await Task.Delay(1000);
-
-                                    if (UploadProgressChanged != null)
-                                        UploadProgressChanged(this, new UploadEvent(speed, _sentBytes, _totalSentBytes));
-
-                                    speed = 0;
-                                }
-                            }).Start();
-                        }
-
-                        if (DownloadProgressChanged != null)
-                        {
-                            long speed = 0;
-
-                            eventStream.ReadBytesCallback = (e) =>
-                            {
-                                speed += e;
-                                _receivedBytes += e;
-                            };
-
-                            new Task(async () =>
-                            {
-                                while ((int)(((double)_receivedBytes / (double)_totalReceivedBytes) * 100.0) != 100 && HasConnection)
-                                {
-                                    await Task.Delay(1000);
-
-                                    if (_isReceivedHeader)
-                                    {
-                                        if (DownloadProgressChanged != null)
-                                            DownloadProgressChanged(this, new DownloadEvent(speed, _receivedBytes, _totalReceivedBytes));
-                                    }
-
-                                    speed = 0;
-                                }
-                            }).Start();
-                        }
-
-                        CommonStream = eventStream;
-                    }
+                    if (Content != null && contentLength != 0)
+                        Content.Write(CommonStream);
                 }
                 catch (Exception ex)
                 {
-                    if (CanReconnect)
+                    if (_canReconnect)
                         return await Reconnect(method, url, body);
 
-                    throw new Exception($"Failed connected to - {Address.AbsoluteUri}", ex);
+                    throw new HttpRequestException($"Failed send data to Address: {Address.AbsoluteUri}", ex);
                 }
-            }
-            else
-            {
-                Address = new UriBuilder(url).Uri;
-            }
 
-            try
-            {
-                long contentLength = 0L;
-                string contentType = null;
-
-                if (Method != HttpMethod.GET && Content != null)
+                try
                 {
-                    contentType = Content.ContentType;
-                    contentLength = Content.ContentLength;
+                    _isReceivedHeader = false;
+
+                    _response = new HttpResponse(this);
+
+                    _isReceivedHeader = true;
+                }
+                catch (Exception ex)
+                {
+                    if (_canReconnect)
+                        return await Reconnect(method, url, body);
+
+                    throw new HttpResponseException($"Failed receive data from Address: {Address.AbsoluteUri}", ex);
                 }
 
-                string stringHeader = GenerateHeaders(Method, contentLength, contentType);
+                _reconnectCount = 0;
+                _whenConnectionIdle = DateTime.Now;
 
-                byte[] startingLineBytes = Encoding.ASCII.GetBytes($"{Method} {Address.PathAndQuery} HTTP/1.1\r\n");
-                byte[] headersBytes = Encoding.ASCII.GetBytes(stringHeader);
+                _response.TimeResponse = (DateTime.Now - timeResponseStart).TimeOfDay;
 
-                _sentBytes = 0;
-                _totalSentBytes = startingLineBytes.Length + headersBytes.Length + contentLength;
+                if (EnableProtocolError)
+                {
+                    if ((int)_response.StatusCode >= 400 && (int)_response.StatusCode < 500)
+                        throw new HttpResponseException($"[Client] | Status Code - {_response.StatusCode}");
+                    else if ((int)_response.StatusCode >= 500)
+                        throw new HttpResponseException($"[Server] | Status Code - {_response.StatusCode}");
+                }
 
-                CommonStream.Write(startingLineBytes, 0, startingLineBytes.Length);
-                CommonStream.Write(headersBytes, 0, headersBytes.Length);
+                if (EnableAutoRedirect && _response.Location != null && _redirectCount < RedirectLimit &&
+                    ((_response.RedirectAddress.Host == Address.Host && _response.RedirectAddress.Scheme != Address.Scheme) ||
+                    !RedirectOnlyIfOtherDomain || (RedirectOnlyIfOtherDomain && _response.RedirectAddress.Host != Address.Host)))
+                {
+                    _redirectCount++;
 
-                if (Content != null && contentLength != 0)
-                    Content.Write(CommonStream);
+                    string location = _response.Location;
+
+                    RedirectHistory.Add(new RedirectItem
+                    {
+                        From = url,
+                        To = location,
+                        StatusCode = (int)_response.StatusCode,
+                        Length = _response.ContentLength,
+                        ContentType = _response.ContentType
+                    });
+
+                    Close();
+
+                    return await Raw(HttpMethod.GET, location, null);
+                }
+
+                _redirectCount = 0;
+                RedirectHistory.Clear();
             }
-            catch (Exception ex)
+            finally
             {
-                if (CanReconnect)
-                    return await Reconnect(method, url, body);
-
-                throw new Exception($"Failed send data to - {Address.AbsoluteUri}", ex);
+                ctr.Dispose();
             }
-
-            try
-            {
-                _isReceivedHeader = false;
-
-                _response = new HttpResponse(this);
-
-                await _response.LoadBody();
-
-                _totalReceivedBytes = _response.ResponseLength;
-                _isReceivedHeader = true;
-            }
-            catch (Exception ex)
-            {
-                if (CanReconnect)
-                    return await Reconnect(method, url, body);
-
-                throw new Exception($"Failed receive data from - {Address.AbsoluteUri}", ex);
-            }
-
-            _reconnectCount = 0;
-            _whenConnectionIdle = DateTime.Now;
-
-            _response.TimeResponse = (DateTime.Now - timeResponseStart).TimeOfDay;
-
-            if (EnableProtocolError)
-            {
-                if ((int)_response.StatusCode >= 400 && (int)_response.StatusCode < 500)
-                    throw new Exception($"[Client] | Status Code - {_response.StatusCode}\r\n{_response.Body}");
-
-                if ((int)_response.StatusCode >= 500)
-                    throw new Exception($"[Server] | Status Code - {_response.StatusCode}\r\n{_response.Body}");
-            }
-
-            if (EnableAutoRedirect && _response.Location != null)
-                return await Raw(Method, _response.Location, Content);
 
             return _response;
         }
@@ -431,41 +448,36 @@ namespace Yove.Http
         {
             int maxRequest = (_response != null && _response.KeepAliveMax != 0) ? _response.KeepAliveMax : KeepAliveMaxRequest;
 
-            if (_keepAliveRequestCount == 0 || _keepAliveRequestCount == maxRequest ||
-                (_response != null && _response.ConnectionClose) || !HasConnection ||
-                _whenConnectionIdle.AddMilliseconds(TimeOut) < DateTime.Now)
-            {
-                return true;
-            }
-
-            return false;
+            return _keepAliveRequestCount == 0 || _keepAliveRequestCount == maxRequest ||
+                _response?.ConnectionClose == true || !HasConnection ||
+                _whenConnectionIdle.AddMilliseconds(TimeOut) < DateTime.Now;
         }
 
         private async Task<TcpClient> CreateConnection(string host, int port)
         {
             if (Proxy == null)
             {
-                TcpClient tcpClient = new TcpClient
+                TcpClient tcpClient = new()
                 {
                     ReceiveTimeout = ReadWriteTimeOut,
                     SendTimeout = ReadWriteTimeOut
                 };
 
-                TaskCompletionSource<bool> taskCompletion = new TaskCompletionSource<bool>();
+                using CancellationTokenSource cancellationToken = new(TimeSpan.FromMilliseconds(TimeOut));
 
-                using (CancellationTokenSource cancellationToken = new CancellationTokenSource(TimeSpan.FromMilliseconds(ReadWriteTimeOut)))
+                ValueTask connectionTask = tcpClient.ConnectAsync(host, port, cancellationToken.Token);
+
+                try
                 {
-                    Task connectionTask = tcpClient.ConnectAsync(host, port);
-
-                    using (cancellationToken.Token.Register(() => taskCompletion.TrySetResult(true)))
-                    {
-                        if (connectionTask != await Task.WhenAny(connectionTask, taskCompletion.Task))
-                            throw new Exception($"Failed Connection - {Address.AbsoluteUri}");
-                    }
+                    await connectionTask;
+                }
+                catch
+                {
+                    throw new HttpRequestException($"Failed Connection to Address: {Address.AbsoluteUri}");
                 }
 
                 if (!tcpClient.Connected)
-                    throw new Exception($"Failed Connection - {Address.AbsoluteUri}");
+                    throw new HttpRequestException($"Failed Connection to Address: {Address.AbsoluteUri}");
 
                 return tcpClient;
             }
@@ -477,7 +489,7 @@ namespace Yove.Http
 
         private string GenerateHeaders(HttpMethod method, long contentLength = 0, string contentType = null)
         {
-            NameValueCollection rawHeaders = new NameValueCollection();
+            NameValueCollection rawHeaders = new();
 
             if (Address.IsDefaultPort)
                 rawHeaders["Host"] = Address.Host;
@@ -487,11 +499,14 @@ namespace Yove.Http
             if (!string.IsNullOrEmpty(UserAgent))
                 rawHeaders["User-Agent"] = UserAgent;
 
-            rawHeaders["Accept"] = Accept;
-            rawHeaders["Accept-Language"] = Language;
+            if (!Headers.AllKeys.Contains("Accept"))
+                rawHeaders["Accept"] = Accept;
+
+            if (!Headers.AllKeys.Contains("Accept-Language"))
+                rawHeaders["Accept-Language"] = Language;
 
             if (EnableEncodingContent)
-                rawHeaders["Accept-Encoding"] = "gzip, deflate, br";
+                rawHeaders["Accept-Encoding"] = "deflate, gzip, br";
 
             if (!string.IsNullOrEmpty(Username) && !string.IsNullOrEmpty(Password))
                 rawHeaders["Authorization"] = $"Basic {Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Username}:{Password}"))}";
@@ -518,7 +533,7 @@ namespace Yove.Http
                 rawHeaders["Content-Length"] = contentLength.ToString();
             }
 
-            if (Proxy != null && Proxy.Type == ProxyType.Http)
+            if (Proxy?.Type == ProxyType.Http)
             {
                 if (KeepAlive)
                 {
@@ -531,74 +546,72 @@ namespace Yove.Http
                     rawHeaders["Proxy-Connection"] = "close";
                 }
             }
+            else if (KeepAlive)
+            {
+                rawHeaders["Connection"] = "keep-alive";
+
+                _keepAliveRequestCount++;
+            }
             else
             {
-                if (KeepAlive)
-                {
-                    rawHeaders["Connection"] = "keep-alive";
-
-                    _keepAliveRequestCount++;
-                }
-                else
-                {
-                    rawHeaders["Connection"] = "close";
-                }
+                rawHeaders["Connection"] = "close";
             }
 
-            if (Cookies != null && Cookies.Count > 0)
+            if (Cookie?.Count > 0)
             {
-                string cookiesBuilder = string.Empty;
+                string cookieBuilder = string.Empty;
 
-                foreach (string Cookie in Cookies)
-                    cookiesBuilder += $"{Cookie}={Cookies[Cookie]}; ";
+                foreach (string cookie in Cookie)
+                    cookieBuilder += $"{cookie}={Cookie[cookie]}; ";
 
-                rawHeaders["Cookie"] = cookiesBuilder.TrimEnd();
+                rawHeaders["Cookie"] = cookieBuilder.TrimEnd();
             }
 
-            StringBuilder headerBuuilder = new StringBuilder();
+            StringBuilder headerBuilder = new();
 
             foreach (string header in rawHeaders)
-                headerBuuilder.AppendFormat($"{header}: {rawHeaders[header]}\r\n");
+                headerBuilder.AppendFormat($"{header}: {rawHeaders[header]}\r\n");
 
             foreach (string header in Headers)
-                headerBuuilder.AppendFormat($"{header}: {Headers[header]}\r\n");
+                headerBuilder.AppendFormat($"{header}: {Headers[header]}\r\n");
 
             foreach (string header in TempHeaders)
-                headerBuuilder.AppendFormat($"{header}: {TempHeaders[header]}\r\n");
+                headerBuilder.AppendFormat($"{header}: {TempHeaders[header]}\r\n");
 
             TempHeaders.Clear();
 
-            return $"{headerBuuilder}\r\n";
+            return $"{headerBuilder}\r\n";
         }
 
         public void AddTempHeader(string key, string value)
         {
             if (string.IsNullOrEmpty(key))
-                throw new ArgumentNullException("Key is null or empty.");
+                throw new NullReferenceException("Key is null or empty.");
 
             if (string.IsNullOrEmpty(value))
-                throw new ArgumentNullException("Value is null or empty.");
+                throw new NullReferenceException("Value is null or empty.");
 
             TempHeaders.Add(key, value);
         }
 
-        public void AddRawCookies(string source)
+        public void AddRawCookie(string source)
         {
             if (string.IsNullOrEmpty(source))
-                throw new ArgumentNullException("Value is null or empty.");
+                throw new NullReferenceException("Value is null or empty.");
 
-            if (!EnableCookies)
-                throw new Exception("Cookies is disabled.");
+            if (!EnableCookie)
+                throw new HttpRequestException("Cookie is disabled.");
 
-            if (source.Contains("Cookie:"))
-                source = source.Replace("Cookie:", "").Trim();
+            if (source.Contains("Cookie:", StringComparison.OrdinalIgnoreCase))
+                source = source.Replace("Cookie:", "", StringComparison.OrdinalIgnoreCase).Trim();
 
             foreach (string cookie in source.Split(';'))
             {
                 string key = cookie.Split('=')[0]?.Trim();
                 string value = cookie.Split('=')[1]?.Trim();
 
-                Cookies[key] = value;
+                if (key != null && value != null)
+                    Cookie[key] = value;
             }
         }
 
@@ -618,13 +631,11 @@ namespace Yove.Http
             return true;
         }
 
-        public object Clone()
-        {
-            return this.MemberwiseClone();
-        }
-
         public void Close()
         {
+            if (!HasConnection)
+                return;
+
             Connection?.Close();
             Connection?.Dispose();
 
@@ -634,38 +645,39 @@ namespace Yove.Http
             CommonStream?.Close();
             CommonStream?.Dispose();
 
-            _response = null;
             _keepAliveRequestCount = 0;
 
             HasConnection = false;
         }
 
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || IsDisposed)
+                return;
+
+            IsDisposed = true;
+
+            Close();
+
+            Content?.Dispose();
+
+            _response?.Content?.Dispose();
+
+            Connection = null;
+            NetworkStream = null;
+            CommonStream = null;
+        }
+
         public void Dispose()
         {
-            if (!IsDisposed)
-            {
-                IsDisposed = true;
+            Dispose(true);
 
-                Close();
-
-                Content?.Dispose();
-
-                Content = null;
-                Proxy = null;
-                Headers = null;
-                TempHeaders = null;
-                Cookies = null;
-                Connection = null;
-                NetworkStream = null;
-                CommonStream = null;
-            }
+            GC.SuppressFinalize(this);
         }
 
         ~HttpClient()
         {
             Dispose();
-
-            GC.SuppressFinalize(this);
         }
     }
 }

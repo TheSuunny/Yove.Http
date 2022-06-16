@@ -1,58 +1,49 @@
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
+
 using Fody;
-using BrotliSharpLib;
+
+using Yove.Http.Exceptions;
+using Yove.Http.Models;
 
 namespace Yove.Http
 {
     [ConfigureAwait(false)]
     public class HttpResponse
     {
-        private HttpClient _request { get; set; }
-        private Receiver _content { get; set; }
+        private HttpClient _request { get; }
+        private Receiver _content { get; }
 
-        public NameValueCollection Headers = new NameValueCollection();
-        public NameValueCollection Cookies = new NameValueCollection();
+        public NameValueCollection Headers = new();
+        public NameValueCollection Cookie = new();
+        public List<RedirectItem> RedirectHistory = new();
 
-        public string ContentType { get; private set; }
-        public string ContentEncoding { get; private set; }
-        public string ProtocolVersion { get; private set; }
-        public string Location { get; private set; }
+        public string ContentType { get; }
+        public string ContentEncoding { get; }
+        public string ProtocolVersion { get; }
+        public string Location { get; }
 
         public long? ContentLength { get; private set; }
-        internal long ResponseLength { get; private set; }
+        public long HeaderLength { get; }
 
-        public int KeepAliveTimeout { get; private set; }
-        public int KeepAliveMax { get; private set; } = 100;
+        internal long ResponseLength { get; }
+
+        public int KeepAliveTimeout { get; }
+        public int KeepAliveMax { get; } = 100;
 
         public bool IsEmpytyBody { get; private set; }
 
-        public HttpStatusCode StatusCode { get; private set; }
-        public HttpMethod Method { get; private set; }
-        public Encoding CharacterSet { get; private set; } = Encoding.Default;
-        public Uri Address { get; private set; }
-
+        public HttpStatusCode StatusCode { get; }
+        public HttpMethod Method { get; }
+        public Encoding CharacterSet { get; } = Encoding.Default;
+        public Uri Address { get; }
+        public Content Content { get; }
         public TimeSpan TimeResponse { get; internal set; }
-
-        private MemoryStream _sourceBody = null;
-        public string Body { get; private set; }
-
-        public JToken Json
-        {
-            get
-            {
-                if (IsEmpytyBody)
-                    throw new NullReferenceException("Content not found.");
-
-                return JToken.Parse(Body);
-            }
-        }
 
         public bool IsOK
         {
@@ -77,10 +68,7 @@ namespace Yove.Http
         {
             get
             {
-                if (Headers["Connection"] != null && Headers["Connection"].Contains("close"))
-                    return true;
-
-                return false;
+                return Headers["Connection"]?.Contains("close", StringComparison.OrdinalIgnoreCase) == true;
             }
         }
 
@@ -88,21 +76,18 @@ namespace Yove.Http
         {
             get
             {
-                if (Location != null)
-                    return new UriBuilder(Location).Uri;
-
-                return null;
+                return Location != null ? new UriBuilder(Location).Uri : null;
             }
         }
 
-        public string this[string Key]
+        public string this[string key]
         {
             get
             {
-                if (string.IsNullOrEmpty(Key))
-                    throw new ArgumentNullException("Key is null or empty.");
+                if (string.IsNullOrEmpty(key))
+                    throw new NullReferenceException("Key is null or empty.");
 
-                return Headers[Key];
+                return Headers[key];
             }
         }
 
@@ -112,6 +97,9 @@ namespace Yove.Http
 
             Method = httpClient.Method;
             Address = httpClient.Address;
+
+            if (_request.RedirectHistory.Count > 0)
+                RedirectHistory.AddRange(_request.RedirectHistory);
 
             _content = new Receiver(_request.Connection.ReceiveBufferSize, _request.CommonStream);
 
@@ -134,26 +122,28 @@ namespace Yove.Http
                 StatusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($"HTTP/{ProtocolVersion} ", headerSource, "\n")?.Trim());
             }
 
-            ContentType = HttpUtils.Parser("Content-Type: ", headerSource, "\n")?.Trim();
-            ContentEncoding = HttpUtils.Parser("Content-Encoding: ", headerSource, "\n")?.Trim();
-            Location = HttpUtils.Parser("Location: ", headerSource, "\n")?.Trim();
+            ContentType = HttpUtils.Parser("\ncontent-type: ", headerSource.ToLower(), "\n")?.Trim();
+            ContentEncoding = HttpUtils.Parser("\ncontent-encoding: ", headerSource.ToLower(), "\n")?.Trim();
+            Location = HttpUtils.Parser("\nlocation: ", headerSource.ToLower(), "\n")?.Trim();
 
-            if (Location != null && Location.StartsWith("/"))
+            if (Location?.StartsWith("//") == true)
+                Location = $"{Address.Scheme}://{Location.TrimStart('/')}";
+            else if (Location?.StartsWith("/") == true)
                 Location = $"{Address.Scheme}://{Address.Authority}/{Location.TrimStart('/')}";
 
-            if (headerSource.Contains("Content-Length:"))
-                ContentLength = Convert.ToInt64(HttpUtils.Parser("Content-Length: ", headerSource, "\n")?.Trim());
+            if (headerSource.Contains("content-length:", StringComparison.OrdinalIgnoreCase))
+                ContentLength = Convert.ToInt64(HttpUtils.Parser("\ncontent-length: ", headerSource.ToLower(), "\n")?.Trim());
 
-            if (headerSource.Contains("Keep-Alive"))
+            if (headerSource.Contains("keep-alive", StringComparison.OrdinalIgnoreCase))
             {
-                if (headerSource.Contains(", max="))
+                if (headerSource.Contains(", max=", StringComparison.OrdinalIgnoreCase))
                 {
-                    KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("Keep-Alive: timeout=", headerSource, ",")?.Trim()) * 1000;
-                    KeepAliveMax = Convert.ToInt32(HttpUtils.Parser($"Keep-Alive: timeout={KeepAliveTimeout}, max=", headerSource, "\n")?.Trim());
+                    KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("\nkeep-alive: timeout=", headerSource.ToLower(), ",")?.Trim()) * 1000;
+                    KeepAliveMax = Convert.ToInt32(HttpUtils.Parser($"\nkeep-alive: timeout={KeepAliveTimeout}, max=", headerSource.ToLower(), "\n")?.Trim());
                 }
                 else
                 {
-                    KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("Keep-Alive: timeout=", headerSource, "\n")?.Trim()) * 1000;
+                    KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("\nkeep-alive: timeout=", headerSource.ToLower(), "\n")?.Trim()) * 1000;
                 }
             }
 
@@ -161,7 +151,7 @@ namespace Yove.Http
             {
                 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-                string charset = HttpUtils.Parser("charset=", headerSource, "\n")?.Replace(@"\", "").Replace("\"", "");
+                string charset = HttpUtils.Parser("\ncharset=", headerSource, "\n")?.Replace(@"\", "").Replace("\"", "");
 
                 if (charset != null)
                 {
@@ -186,19 +176,19 @@ namespace Yove.Http
 
             foreach (string header in headerSource.Split('\n'))
             {
-                if (!header.Contains(":"))
+                if (!header.Contains(':'))
                     continue;
 
                 string key = header.Split(':')[0]?.Trim();
-                string value = header.Substring(key.Count() + 2)?.Trim();
+                string value = header[(key.Length + 2)..]?.Trim();
 
                 if (!string.IsNullOrEmpty(key))
                 {
-                    if (key.ToLower().Contains("set-cookie"))
+                    if (key.Contains("set-cookie", StringComparison.OrdinalIgnoreCase))
                     {
                         string cookie = value.TrimEnd(';').Split(';')[0];
 
-                        if (!cookie.Contains("="))
+                        if (!cookie.Contains('='))
                             continue;
 
                         string cookieName = cookie.Split('=')[0]?.Trim();
@@ -206,10 +196,10 @@ namespace Yove.Http
 
                         if (!string.IsNullOrEmpty(cookieName))
                         {
-                            Cookies[cookieName] = cookieValue;
+                            Cookie[cookieName] = cookieValue;
 
-                            if (_request.EnableCookies && _request.Cookies != null)
-                                _request.Cookies[cookieName] = cookieValue;
+                            if (_request.EnableCookie && _request.Cookie != null)
+                                _request.Cookie[cookieName] = cookieValue;
                         }
                     }
                     else
@@ -219,179 +209,157 @@ namespace Yove.Http
                 }
             }
 
-            if (ContentLength == 0 || Method == HttpMethod.HEAD || StatusCode == HttpStatusCode.Continue ||
-                StatusCode == HttpStatusCode.NoContent || StatusCode == HttpStatusCode.NotModified)
+            HeaderLength = _content.Position;
+            ResponseLength = _content.Position + (ContentLength ?? 0);
+
+            Content = new Content(this);
+        }
+
+        internal async Task<MemoryStream> GetBodyContent()
+        {
+            if (ContentLength.HasValue && ContentLength > _request.MaxReciveBufferSize)
+                throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
+
+            if (Content.Stream.Length > 0)
+            {
+                Content.Stream.Position = 0;
+
+                return Content.Stream;
+            }
+
+            MemoryStream outputStream = null;
+
+            if (Headers["Content-Encoding"] != null && Headers["Content-Encoding"] != "none")
+            {
+                if (Headers["Transfer-Encoding"] != null)
+                    outputStream = await ReceiveZipBody(true);
+
+                if (outputStream == null && ContentLength.HasValue)
+                    outputStream = await ReceiveZipBody(false);
+
+                if (outputStream == null)
+                {
+                    using StreamWrapper streamWrapper = new(_request.CommonStream, _content);
+                    using Stream decopressionStream = GetZipStream(streamWrapper);
+
+                    outputStream = await ReceiveUnsizeBody(decopressionStream);
+                }
+            }
+
+            if (outputStream == null && Headers["Transfer-Encoding"] != null)
+                outputStream = await ReceiveStandartBody(true);
+
+            if (outputStream == null && ContentLength.HasValue)
+                outputStream = await ReceiveStandartBody(false);
+
+            if (outputStream == null)
+                outputStream = await ReceiveUnsizeBody(_request.CommonStream);
+
+            if (outputStream != null && Content.Stream.Length > 0)
+                Content.Stream.Position = 0;
+
+            if (!ContentLength.HasValue || ContentLength == 0 || Method == HttpMethod.HEAD ||
+                StatusCode == HttpStatusCode.Continue || StatusCode == HttpStatusCode.NoContent ||
+                StatusCode == HttpStatusCode.NotModified)
             {
                 IsEmpytyBody = true;
-            }
-
-            ResponseLength = _content.Position + ((ContentLength.HasValue) ? ContentLength.Value : 0);
-        }
-
-        internal async Task<MemoryStream> LoadBody()
-        {
-            if (_sourceBody == null)
-            {
-                if (Headers["Content-Encoding"] != null)
-                {
-                    if (Headers["Transfer-Encoding"] != null)
-                        _sourceBody = await ReceiveZipBody(true);
-
-                    if (_sourceBody == null && ContentLength.HasValue)
-                        _sourceBody = await ReceiveZipBody(false);
-
-                    if (_sourceBody == null)
-                    {
-                        using (StreamWrapper streamWrapper = new StreamWrapper(_request.CommonStream, _content))
-                        {
-                            using (Stream gZipStream = GetZipStream(streamWrapper))
-                                _sourceBody = await ReceiveUnsizeBody(gZipStream);
-                        }
-                    }
-                }
-
-                if (_sourceBody == null && Headers["Transfer-Encoding"] != null)
-                    _sourceBody = await ReceiveStandartBody(true);
-
-                if (_sourceBody == null && ContentLength.HasValue)
-                    _sourceBody = await ReceiveStandartBody(false);
-
-                if (_sourceBody == null)
-                    _sourceBody = await ReceiveUnsizeBody(_request.CommonStream);
-
-                if (_sourceBody != null)
-                {
-                    _sourceBody.Position = 0;
-
-                    if (Body == null)
-                        Body = CharacterSet.GetString(_sourceBody.ToArray(), 0, (int)_sourceBody.Length);
-                }
-            }
-
-            return _sourceBody;
-        }
-
-        private Stream GetZipStream(Stream inputStream)
-        {
-            switch (Headers["Content-Encoding"].ToLower())
-            {
-                case "gzip":
-                    return new GZipStream(inputStream, CompressionMode.Decompress, true);
-                case "br":
-                    return new BrotliStream(inputStream, CompressionMode.Decompress, true);
-                case "deflate":
-                    return new DeflateStream(inputStream, CompressionMode.Decompress, true);
-                default:
-                    throw new Exception("Unsupported compression format.");
-            }
-        }
-
-        private async Task<MemoryStream> ReceiveZipBody(bool chunked)
-        {
-            MemoryStream outputStream = new MemoryStream();
-
-            using (StreamWrapper streamWrapper = new StreamWrapper(_request.CommonStream, _content))
-            {
-                using (Stream gZipStream = GetZipStream(streamWrapper))
-                {
-                    byte[] buffer = new byte[_request.Connection.ReceiveBufferSize];
-
-                    while (streamWrapper.TotalBytesRead != ContentLength)
-                    {
-                        if (!chunked)
-                        {
-                            int readBytes = await gZipStream.ReadAsync(buffer, 0, buffer.Length);
-
-                            if (readBytes == 0)
-                            {
-                                if (streamWrapper.TotalBytesRead != ContentLength)
-                                {
-                                    await WaitStream();
-                                    continue;
-                                }
-
-                                break;
-                            }
-
-                            await outputStream.WriteAsync(buffer, 0, readBytes);
-                        }
-                        else
-                        {
-                            string getLine = _content.Get(true);
-
-                            if (getLine == "\r\n")
-                                continue;
-
-                            getLine = getLine.Trim(' ', '\r', '\n');
-
-                            if (getLine == string.Empty)
-                                break;
-
-                            int blockLength = Convert.ToInt32(getLine, 16);
-
-                            if (blockLength == 0)
-                                break;
-
-                            streamWrapper.TotalBytesRead = 0;
-                            streamWrapper.LimitBytesRead = blockLength;
-
-                            while (true)
-                            {
-                                int readBytes = gZipStream.Read(buffer, 0, buffer.Length);
-
-                                if (readBytes == 0)
-                                {
-                                    if (streamWrapper.TotalBytesRead != blockLength)
-                                    {
-                                        await WaitStream();
-                                        continue;
-                                    }
-
-                                    break;
-                                }
-
-                                await outputStream.WriteAsync(buffer, 0, readBytes);
-                            }
-                        }
-                    }
-                }
             }
 
             return outputStream;
         }
 
-        private async Task<MemoryStream> ReceiveStandartBody(bool chunked)
+        private Stream GetZipStream(Stream inputStream)
         {
-            MemoryStream outputStream = new MemoryStream();
-
-            byte[] buffer = new byte[_request.Connection.ReceiveBufferSize];
-
-            if (!chunked)
+            return Headers["Content-Encoding"].ToLower() switch
             {
-                long totalBytesRead = 0;
+                "gzip" => new GZipStream(inputStream, CompressionMode.Decompress, true),
+                "br" => new BrotliStream(inputStream, CompressionMode.Decompress, true),
+                "deflate" => new DeflateStream(inputStream, CompressionMode.Decompress, true),
+                _ => throw new HttpResponseException("Unsupported compression format."),
+            };
+        }
 
-                while (totalBytesRead != ContentLength)
+        private async Task<MemoryStream> ReceiveZipBody(bool chunked)
+        {
+            using (StreamWrapper streamWrapper = new(_request.CommonStream, _content))
+            {
+                using Stream decopressionStream = GetZipStream(streamWrapper);
+
+                byte[] buffer = new byte[_request.Connection.ReceiveBufferSize];
+
+                if (chunked)
                 {
-                    int readBytes = 0;
-
-                    if (_content.HasData)
-                        readBytes = _content.Read(buffer, 0, buffer.Length);
-                    else
-                        readBytes = await _request.CommonStream.ReadAsync(buffer, 0, buffer.Length);
-
-                    if (readBytes != 0)
+                    while (true)
                     {
-                        totalBytesRead += readBytes;
+                        string getLine = _content.Get(true);
 
-                        await outputStream.WriteAsync(buffer, 0, readBytes);
+                        if (getLine == "\r\n")
+                            continue;
+
+                        getLine = getLine.Trim(' ', '\r', '\n');
+
+                        if (getLine?.Length == 0)
+                            break;
+
+                        int blockLength = Convert.ToInt32(getLine, 16);
+
+                        if (blockLength == 0)
+                            break;
+
+                        streamWrapper.TotalBytesRead = 0;
+                        streamWrapper.LimitBytesRead = blockLength;
+
+                        while (true)
+                        {
+                            int readBytes = decopressionStream.Read(buffer, 0, buffer.Length);
+
+                            if (readBytes == 0)
+                            {
+                                if (streamWrapper.TotalBytesRead == blockLength)
+                                    break;
+
+                                await WaitStream();
+                                continue;
+                            }
+
+                            await Content.Stream.WriteAsync(buffer.AsMemory(0, readBytes));
+
+                            if (Content.Stream.Length > _request.MaxReciveBufferSize)
+                                throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
+                        }
                     }
-                    else
+
+                    if (ContentLength == null || ContentLength.Value == 0)
+                        ContentLength = Content.Stream.Length;
+                }
+                else
+                {
+                    while (true)
                     {
-                        await WaitStream();
+                        int readBytes = await decopressionStream.ReadAsync(buffer);
+
+                        if (readBytes == 0)
+                        {
+                            if (streamWrapper.TotalBytesRead == ContentLength)
+                                break;
+
+                            await WaitStream();
+                            continue;
+                        }
+
+                        await Content.Stream.WriteAsync(buffer.AsMemory(0, readBytes));
                     }
                 }
             }
-            else
+
+            return Content.Stream;
+        }
+
+        private async Task<MemoryStream> ReceiveStandartBody(bool chunked)
+        {
+            byte[] buffer = new byte[_request.Connection.ReceiveBufferSize];
+
+            if (chunked)
             {
                 while (true)
                 {
@@ -402,13 +370,12 @@ namespace Yove.Http
 
                     getLine = getLine.Trim(' ', '\r', '\n');
 
-                    if (getLine == string.Empty)
+                    if (getLine?.Length == 0)
                         break;
 
-                    int blockLength = 0;
                     long totalBytesRead = 0;
 
-                    blockLength = Convert.ToInt32(getLine, 16);
+                    int blockLength = Convert.ToInt32(getLine, 16);
 
                     if (blockLength == 0)
                         break;
@@ -420,41 +387,68 @@ namespace Yove.Http
                         if (length > buffer.Length)
                             length = buffer.Length;
 
-                        int readBytes = 0;
+                        int readBytes;
 
                         if (_content.HasData)
                             readBytes = _content.Read(buffer, 0, (int)length);
                         else
-                            readBytes = await _request.CommonStream.ReadAsync(buffer, 0, (int)length);
+                            readBytes = await _request.CommonStream.ReadAsync(buffer.AsMemory(0, (int)length));
 
-                        if (readBytes != 0)
-                        {
-                            totalBytesRead += readBytes;
-
-                            await outputStream.WriteAsync(buffer, 0, readBytes);
-                        }
-                        else
+                        if (readBytes == 0)
                         {
                             await WaitStream();
+                            continue;
                         }
+
+                        totalBytesRead += readBytes;
+
+                        await Content.Stream.WriteAsync(buffer.AsMemory(0, readBytes));
+
+                        if (Content.Stream.Length > _request.MaxReciveBufferSize)
+                            throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
                     }
+                }
+
+                if (ContentLength == null || ContentLength.Value == 0)
+                    ContentLength = Content.Stream.Length;
+            }
+            else
+            {
+                long totalBytesRead = 0;
+
+                while (totalBytesRead != ContentLength)
+                {
+                    int readBytes;
+
+                    if (_content.HasData)
+                        readBytes = _content.Read(buffer, 0, buffer.Length);
+                    else
+                        readBytes = await _request.CommonStream.ReadAsync(buffer);
+
+                    if (readBytes == 0)
+                    {
+                        await WaitStream();
+                        continue;
+                    }
+
+                    await Content.Stream.WriteAsync(buffer.AsMemory(0, readBytes));
+
+                    totalBytesRead += readBytes;
                 }
             }
 
-            return outputStream;
+            return Content.Stream;
         }
 
         private async Task<MemoryStream> ReceiveUnsizeBody(Stream inputStream)
         {
-            MemoryStream outputStream = new MemoryStream();
-
             int beginBytesRead = 0;
 
             byte[] buffer = new byte[_request.Connection.ReceiveBufferSize];
 
             if (inputStream is GZipStream || inputStream is DeflateStream || inputStream is BrotliStream)
             {
-                beginBytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length);
+                beginBytesRead = await inputStream.ReadAsync(buffer);
             }
             else
             {
@@ -462,21 +456,21 @@ namespace Yove.Http
                     beginBytesRead = _content.Read(buffer, 0, buffer.Length);
 
                 if (beginBytesRead < buffer.Length)
-                    beginBytesRead += await inputStream.ReadAsync(buffer, beginBytesRead, buffer.Length - beginBytesRead);
+                    beginBytesRead += await inputStream.ReadAsync(buffer.AsMemory(beginBytesRead, buffer.Length - beginBytesRead));
             }
 
-            await outputStream.WriteAsync(buffer, 0, beginBytesRead);
+            await Content.Stream.WriteAsync(buffer.AsMemory(0, beginBytesRead));
 
             string html = Encoding.ASCII.GetString(buffer);
 
-            if (html.Contains("<html") && html.Contains("</html>"))
-                return outputStream;
+            if (html.Contains("<html", StringComparison.OrdinalIgnoreCase) && html.Contains("</html>", StringComparison.OrdinalIgnoreCase))
+                return Content.Stream;
 
             while (true)
             {
-                int readBytes = await inputStream.ReadAsync(buffer, 0, buffer.Length);
+                int readBytes = await inputStream.ReadAsync(buffer);
 
-                if (html.Contains("<html"))
+                if (html.Contains("<html", StringComparison.OrdinalIgnoreCase))
                 {
                     if (readBytes == 0)
                     {
@@ -486,9 +480,9 @@ namespace Yove.Http
 
                     html = Encoding.ASCII.GetString(buffer);
 
-                    if (html.Contains("</html>"))
+                    if (html.Contains("</html>", StringComparison.OrdinalIgnoreCase))
                     {
-                        await outputStream.WriteAsync(buffer, 0, beginBytesRead);
+                        await Content.Stream.WriteAsync(buffer.AsMemory(0, beginBytesRead));
                         break;
                     }
                 }
@@ -497,38 +491,43 @@ namespace Yove.Http
                     break;
                 }
 
-                await outputStream.WriteAsync(buffer, 0, beginBytesRead);
+                await Content.Stream.WriteAsync(buffer.AsMemory(0, readBytes));
+
+                if (Content.Stream.Length > _request.MaxReciveBufferSize)
+                    throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
             }
 
-            return outputStream;
+            if (ContentLength == null || ContentLength.Value == 0)
+                ContentLength = Content.Stream.Length;
+
+            return Content.Stream;
         }
 
         private async Task WaitStream()
         {
-            int sleep = 0;
+            int currentSleep = 0;
             int delay = (_request.Connection.ReceiveTimeout < 10) ? 10 : _request.Connection.ReceiveTimeout;
 
             while (!_request.NetworkStream.DataAvailable)
             {
-                if (sleep < delay)
+                if (currentSleep < delay)
                 {
-                    sleep += 10;
+                    currentSleep += 10;
 
                     await Task.Delay(10);
-
                     continue;
                 }
 
-                throw new Exception($"Timeout waiting for data - {_request.Address.AbsoluteUri}");
+                throw new HttpResponseException($"Timeout waiting for data from Address: {_request.Address.AbsoluteUri}");
             }
         }
 
-        public string Parser(string start, string end, bool removeSpace = false)
+        public async Task<string> ToFile(string filename)
         {
-            if (string.IsNullOrEmpty(start) || string.IsNullOrEmpty(end))
-                throw new ArgumentNullException("Start or End is null or empty.");
+            if (string.IsNullOrEmpty(filename))
+                throw new NullReferenceException("Filename is null or empty.");
 
-            return HttpUtils.Parser(start, Body, end, removeSpace);
+            return await ToFile(AppDomain.CurrentDomain.BaseDirectory, filename);
         }
 
         public async Task<string> ToFile(string localPath, string filename = null)
@@ -537,51 +536,28 @@ namespace Yove.Http
                 throw new NullReferenceException("Content not found.");
 
             if (string.IsNullOrEmpty(localPath))
-                throw new ArgumentNullException("Path is null or empty.");
-
-            string fullPath = string.Empty;
+                throw new NullReferenceException("Path is null or empty.");
 
             if (filename == null)
             {
                 if (Headers["Content-Disposition"] != null)
                 {
-                    fullPath = $"{localPath.TrimEnd('/')}/{HttpUtils.Parser("filename=\"", Headers["Content-Disposition"], "\"")}";
+                    filename = $"{localPath.TrimEnd('/')}/{HttpUtils.Parser("filename=\"", Headers["Content-Disposition"], "\"")}";
                 }
                 else
                 {
                     filename = Path.GetFileName(new Uri(Address.AbsoluteUri).LocalPath);
 
                     if (string.IsNullOrEmpty(filename))
-                        throw new ArgumentNullException("Could not find filename.");
+                        throw new NullReferenceException("Could not find filename.");
                 }
             }
 
-            fullPath = $"{localPath.TrimEnd('/')}/{filename}";
+            string outputPath = $"{localPath.TrimEnd('/')}/{filename}";
 
-            using (FileStream fileStream = new FileStream(fullPath, FileMode.Append))
-            {
-                using (MemoryStream bodyStream = await LoadBody())
-                    await bodyStream.CopyToAsync(fileStream);
-            }
+            await File.WriteAllBytesAsync(outputPath, await Content.ReadAsBytes());
 
-            return fullPath;
-        }
-
-        public async Task<byte[]> ToBytes()
-        {
-            if (IsEmpytyBody)
-                throw new NullReferenceException("Content not found.");
-
-            using (MemoryStream bodyStream = await LoadBody())
-                return bodyStream.ToArray();
-        }
-
-        public async Task<MemoryStream> ToMemoryStream()
-        {
-            if (IsEmpytyBody)
-                throw new NullReferenceException("Content not found.");
-
-            return await LoadBody();
+            return outputPath;
         }
     }
 }

@@ -10,11 +10,11 @@ namespace Yove.Http
         public StringContent(string content, Encoding encoding)
         {
             if (content == null || encoding == null)
-                throw new ArgumentNullException("Content or Encoding is null.");
+                throw new NullReferenceException("Content or Encoding is null.");
 
-            this.Content = encoding.GetBytes(content);
-            this.Offset = 0;
-            this.Count = this.Content.Length;
+            Content = encoding.GetBytes(content);
+            Offset = 0;
+            Count = Content.Length;
         }
     }
 }

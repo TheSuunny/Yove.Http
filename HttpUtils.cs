@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace Yove.Http
 {
-    public class HttpUtils
+    public static class HttpUtils
     {
         public static string Parser(string start, string body, string end, bool removeSpace = false)
         {
@@ -17,11 +17,11 @@ namespace Yove.Http
 
                 int a = body.IndexOf(start, StringComparison.Ordinal) + start.Length;
 
-                body = body.Substring(a, body.Length - a);
+                body = body[a..];
 
                 int b = body.IndexOf(end, StringComparison.Ordinal);
 
-                return (b > 0) ? body.Substring(0, b) : null;
+                return (b > 0) ? body[..b] : null;
             }
             catch
             {
@@ -31,9 +31,9 @@ namespace Yove.Http
 
         public static string RandomString(int length)
         {
-            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuywxyz";
+            const string CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuywxyz";
 
-            return new string(Enumerable.Repeat(chars, length).Select(s => s[new Random().Next(s.Length)]).ToArray());
+            return new string(Enumerable.Repeat(CHARSET, length).Select(s => s[new Random().Next(s.Length)]).ToArray());
         }
 
         public static string GenerateUserAgent(HttpSystem system, HttpBrowser browser)
@@ -45,14 +45,14 @@ namespace Yove.Http
         {
             HttpBrowser[] browserList = Enum.GetValues(typeof(HttpBrowser)).Cast<HttpBrowser>().ToArray();
 
-            return UserAgent(system, browserList[new Random().Next(0, browserList.Count())]);
+            return UserAgent(system, browserList[new Random().Next(0, browserList.Length)]);
         }
 
         public static string GenerateUserAgent(HttpBrowser browser)
         {
             HttpSystem[] systemList = Enum.GetValues(typeof(HttpSystem)).Cast<HttpSystem>().ToArray();
 
-            return UserAgent(systemList[new Random().Next(0, systemList.Count())], browser);
+            return UserAgent(systemList[new Random().Next(0, systemList.Length)], browser);
         }
 
         public static string GenerateUserAgent()
@@ -60,7 +60,7 @@ namespace Yove.Http
             HttpSystem[] systemList = Enum.GetValues(typeof(HttpSystem)).Cast<HttpSystem>().ToArray();
             HttpBrowser[] browserList = Enum.GetValues(typeof(HttpBrowser)).Cast<HttpBrowser>().ToArray();
 
-            return UserAgent(systemList[new Random().Next(0, systemList.Count())], browserList[new Random().Next(0, browserList.Count())]);
+            return UserAgent(systemList[new Random().Next(0, systemList.Length)], browserList[new Random().Next(0, browserList.Length)]);
         }
 
         private static string UserAgent(HttpSystem system, HttpBrowser browser)
@@ -126,26 +126,20 @@ namespace Yove.Http
                 "14.0", "13.1.2", "12.1.2"
             };
 
-            string[] Edge = new[]
+            string[] edge = new[]
             {
                 "17.17134", "16.16299", "15.15063", "14.14393", "13.10586", "12.10240"
             };
 
-            switch (browser)
+            return browser switch
             {
-                case HttpBrowser.Chrome:
-                    return chrome[new Random().Next(0, chrome.Count())];
-                case HttpBrowser.Firefox:
-                    return $"{new Random().Next(49, 70)}.0";
-                case HttpBrowser.Opera:
-                    return $"Chrome/{chrome[new Random().Next(0, chrome.Count())]} Safari/537.36 OPR/{opera[new Random().Next(0, opera.Count())]}";
-                case HttpBrowser.Safari:
-                    return safari[new Random().Next(0, safari.Count())];
-                case HttpBrowser.Edge:
-                    return $"Chrome/{chrome[new Random().Next(0, chrome.Count())]} Safari/537.36 Edge/{Edge[new Random().Next(0, Edge.Count())]}";
-                default:
-                    return null;
-            }
+                HttpBrowser.Chrome => chrome[new Random().Next(0, chrome.Length)],
+                HttpBrowser.Firefox => $"{new Random().Next(49, 70)}.0",
+                HttpBrowser.Opera => $"Chrome/{chrome[new Random().Next(0, chrome.Length)]} Safari/537.36 OPR/{opera[new Random().Next(0, opera.Length)]}",
+                HttpBrowser.Safari => safari[new Random().Next(0, safari.Length)],
+                HttpBrowser.Edge => $"Chrome/{chrome[new Random().Next(0, chrome.Length)]} Safari/537.36 Edge/{edge[new Random().Next(0, edge.Length)]}",
+                _ => null,
+            };
         }
 
         private static string GenerateVersionOS(HttpSystem system)
@@ -168,19 +162,14 @@ namespace Yove.Http
                 "11167.0.0", "10895.56.0", "11021.34.0", "11166.0.0"
             };
 
-            switch (system)
+            return system switch
             {
-                case HttpSystem.Windows:
-                    return windows[new Random().Next(0, windows.Count())];
-                case HttpSystem.Mac:
-                    return mac[new Random().Next(0, mac.Count())];
-                case HttpSystem.Linux:
-                    return linux[new Random().Next(0, linux.Count())];
-                case HttpSystem.ChromeOS:
-                    return chromeOS[new Random().Next(0, chromeOS.Count())];
-                default:
-                    return null;
-            }
+                HttpSystem.Windows => windows[new Random().Next(0, windows.Length)],
+                HttpSystem.Mac => mac[new Random().Next(0, mac.Length)],
+                HttpSystem.Linux => linux[new Random().Next(0, linux.Length)],
+                HttpSystem.ChromeOS => chromeOS[new Random().Next(0, chromeOS.Length)],
+                _ => null,
+            };
         }
     }
 }
