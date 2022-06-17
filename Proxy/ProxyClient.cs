@@ -61,19 +61,23 @@ public class ProxyClient
 
         using CancellationTokenSource cancellationToken = new(TimeSpan.FromMilliseconds(TimeOut));
 
-        ValueTask connectionTask = tcpClient.ConnectAsync(Host, Port, cancellationToken.Token);
-
         try
         {
-            await connectionTask;
+#if NETSTANDARD2_1 || NETCOREAPP3_1
+                tcpClient.ConnectAsync(Host, Port).Wait(cancellationToken.Token);
+#elif NET5_0_OR_GREATER
+            await tcpClient.ConnectAsync(Host, Port, cancellationToken.Token);
+#endif
+
+            if (!tcpClient.Connected)
+                throw new();
         }
         catch
         {
-            throw new HttpProxyException($"Failed Connection to proxy: {Host}:{Port}");
-        }
+            tcpClient.Dispose();
 
-        if (!tcpClient.Connected)
-            throw new HttpProxyException($"Failed Connection to proxy: {Host}:{Port}");
+            throw new HttpRequestException($"Failed Connection to proxy: {Host}:{Port}");
+        }
 
         NetworkStream networkStream = tcpClient.GetStream();
 

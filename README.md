@@ -1,17 +1,17 @@
 # Yove.Http | Http Client / Http Framework
 
-[![NuGet version](https://badge.fury.io/nu/Yove.Http.svg)](https://badge.fury.io/nu/Yove.Http)
-[![Downloads](https://img.shields.io/nuget/dt/Yove.Http.svg)](https://www.nuget.org/packages/Yove.Http)
+[![NuGet version](https://badge.fury.io/nu/Yove.HttpClient.svg)](https://badge.fury.io/nu/Yove.HttpClient)
+[![Downloads](https://img.shields.io/nuget/dt/Yove.HttpClient.svg)](https://www.nuget.org/packages/Yove.HttpClient)
 [![Target](https://img.shields.io/badge/.NET%20Standard-2.0-green.svg)](https://docs.microsoft.com/ru-ru/dotnet/standard/net-standard)
 
-Nuget: https://www.nuget.org/packages/Yove.Http/
+Nuget: https://www.nuget.org/packages/Yove.HttpClient
 
 ```
-Install-Package Yove.Http
+Install-Package Yove.HttpClient
 ```
 
 ```
-dotnet add package Yove.Http
+dotnet add package Yove.HttpClient
 ```
 
 ---

@@ -465,19 +465,23 @@ public class HttpClient : IDisposable
 
             using CancellationTokenSource cancellationToken = new(TimeSpan.FromMilliseconds(TimeOut));
 
-            ValueTask connectionTask = tcpClient.ConnectAsync(host, port, cancellationToken.Token);
-
             try
             {
-                await connectionTask;
+#if NETSTANDARD2_1 || NETCOREAPP3_1
+                tcpClient.ConnectAsync(host, port).Wait(cancellationToken.Token);
+#elif NET5_0_OR_GREATER
+                await tcpClient.ConnectAsync(host, port, cancellationToken.Token);
+#endif
+
+                if (!tcpClient.Connected)
+                    throw new();
             }
             catch
             {
+                tcpClient.Dispose();
+
                 throw new HttpRequestException($"Failed Connection to Address: {Address.AbsoluteUri}");
             }
-
-            if (!tcpClient.Connected)
-                throw new HttpRequestException($"Failed Connection to Address: {Address.AbsoluteUri}");
 
             return tcpClient;
         }
