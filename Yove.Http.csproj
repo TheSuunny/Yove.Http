@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <Id>Yove.HttpClient</Id>
+    <PackageId>Yove.HttpClient</PackageId>
     <Version>1.6.0</Version>
     <Authors>Sunny</Authors>
     <NeutralLanguage>en-US, ru-RU</NeutralLanguage>
