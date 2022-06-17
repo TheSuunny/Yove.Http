@@ -1,20 +1,19 @@
 using System;
 using System.Text;
 
-namespace Yove.Http
+namespace Yove.HttpClient;
+
+public class StringContent : ByteContent
 {
-    public class StringContent : ByteContent
+    public StringContent(string content) : this(content, Encoding.UTF8) { }
+
+    public StringContent(string content, Encoding encoding)
     {
-        public StringContent(string content) : this(content, Encoding.UTF8) { }
+        if (content == null || encoding == null)
+            throw new NullReferenceException("Content or Encoding is null.");
 
-        public StringContent(string content, Encoding encoding)
-        {
-            if (content == null || encoding == null)
-                throw new NullReferenceException("Content or Encoding is null.");
-
-            Content = encoding.GetBytes(content);
-            Offset = 0;
-            Count = Content.Length;
-        }
+        Content = encoding.GetBytes(content);
+        Offset = 0;
+        Count = Content.Length;
     }
 }

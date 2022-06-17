@@ -1,11 +1,10 @@
-namespace Yove.Http
+namespace Yove.HttpClient;
+
+public enum HttpBrowser
 {
-    public enum HttpBrowser
-    {
-        Chrome,
-        Firefox,
-        Opera,
-        Safari,
-        Edge
-    }
+    Chrome,
+    Firefox,
+    Opera,
+    Safari,
+    Edge
 }

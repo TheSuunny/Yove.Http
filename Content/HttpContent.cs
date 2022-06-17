@@ -1,15 +1,14 @@
 using System.IO;
 
-namespace Yove.Http
+namespace Yove.HttpClient;
+
+public abstract class HttpContent
 {
-    public abstract class HttpContent
-    {
-        public string ContentType { get; set; }
+    public string ContentType { get; set; }
 
-        public abstract long ContentLength { get; }
+    public abstract long ContentLength { get; }
 
-        public abstract void Write(Stream commonStream);
+    public abstract void Write(Stream commonStream);
 
-        public abstract void Dispose();
-    }
+    public abstract void Dispose();
 }

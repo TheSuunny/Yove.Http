@@ -1,20 +1,19 @@
-namespace Yove.Http
+namespace Yove.HttpClient;
+
+public enum HttpMethod
 {
-    public enum HttpMethod
-    {
-        GET,
-        POST,
-        HEAD,
-        PUT,
-        DELETE,
-        PATCH,
-        OPTIONS,
-        PROPFIND,
-        PROPPATCH,
-        MKCOL,
-        COPY,
-        MOVE,
-        LOCK,
-        UNLOCK
-    }
+    GET,
+    POST,
+    HEAD,
+    PUT,
+    DELETE,
+    PATCH,
+    OPTIONS,
+    PROPFIND,
+    PROPPATCH,
+    MKCOL,
+    COPY,
+    MOVE,
+    LOCK,
+    UNLOCK
 }

@@ -6,87 +6,86 @@ using Fody;
 
 using Newtonsoft.Json.Linq;
 
-using Yove.Http.Exceptions;
+using Yove.HttpClient.Exceptions;
 
-namespace Yove.Http
+namespace Yove.HttpClient;
+
+[ConfigureAwait(false)]
+public class Content : IDisposable
 {
-    [ConfigureAwait(false)]
-    public class Content : IDisposable
+    #region Public
+
+    public bool IsDisposed { get; set; }
+
+    #endregion
+
+    #region Private
+
+    private HttpResponse _response { get; }
+
+    #endregion
+
+    #region Internal
+
+    internal MemoryStream Stream { get; } = new();
+
+    #endregion
+
+    internal Content(HttpResponse response)
     {
-        #region Public
+        _response = response;
+    }
 
-        public bool IsDisposed { get; set; }
+    public async Task<string> ReadAsString()
+    {
+        if (_response.IsEmpytyBody)
+            throw new HttpResponseException("Content not found.");
 
-        #endregion
+        MemoryStream outputStream = await _response.GetBodyContent();
 
-        #region Private
+        return _response.CharacterSet.GetString(outputStream.ToArray(), 0, (int)outputStream.Length);
+    }
 
-        private HttpResponse _response { get; }
+    public async Task<JToken> ReadAsJson()
+    {
+        string body = await ReadAsString();
 
-        #endregion
+        if (string.IsNullOrEmpty(body))
+            throw new HttpResponseException("Content not found.");
 
-        #region Internal
+        return JToken.Parse(body);
+    }
 
-        internal MemoryStream Stream { get; } = new();
+    public async Task<MemoryStream> ReadAsStream()
+    {
+        if (_response.IsEmpytyBody)
+            throw new HttpResponseException("Content not found.");
 
-        #endregion
+        return await _response.GetBodyContent();
+    }
 
-        internal Content(HttpResponse response)
-        {
-            _response = response;
-        }
+    public async Task<byte[]> ReadAsBytes()
+    {
+        MemoryStream outputStream = await ReadAsStream();
 
-        public async Task<string> ReadAsString()
-        {
-            if (_response.IsEmpytyBody)
-                throw new HttpResponseException("Content not found.");
+        return outputStream?.ToArray();
+    }
 
-            MemoryStream outputStream = await _response.GetBodyContent();
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing || IsDisposed)
+            return;
 
-            return _response.CharacterSet.GetString(outputStream.ToArray(), 0, (int)outputStream.Length);
-        }
+        IsDisposed = true;
 
-        public async Task<JToken> ReadAsJson()
-        {
-            string body = await ReadAsString();
+        Stream.Close();
+        Stream.Dispose();
+    }
 
-            if (string.IsNullOrEmpty(body))
-                throw new HttpResponseException("Content not found.");
+    public void Dispose()
+    {
+        Dispose(true);
 
-            return JToken.Parse(body);
-        }
-
-        public async Task<MemoryStream> ReadAsStream()
-        {
-            if (_response.IsEmpytyBody)
-                throw new HttpResponseException("Content not found.");
-
-            return await _response.GetBodyContent();
-        }
-
-        public async Task<byte[]> ReadAsBytes()
-        {
-            MemoryStream outputStream = await ReadAsStream();
-
-            return outputStream?.ToArray();
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposing || IsDisposed)
-                return;
-
-            IsDisposed = true;
-
-            Stream.Close();
-            Stream.Dispose();
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-
-            GC.SuppressFinalize(this);
-        }
+        GC.SuppressFinalize(this);
     }
 }

@@ -1,24 +1,23 @@
 using System;
 
-namespace Yove.Http.Events
+namespace Yove.HttpClient.Events;
+
+public class UploadEvent : EventArgs
 {
-    public class UploadEvent : EventArgs
+    public long Sent { get; }
+    public long Total { get; }
+
+    public int ProgressPercentage
     {
-        public long Sent { get; }
-        public long Total { get; }
-
-        public int ProgressPercentage
+        get
         {
-            get
-            {
-                return (int)(Sent / (double)Total * 100.0);
-            }
+            return (int)(Sent / (double)Total * 100.0);
         }
+    }
 
-        public UploadEvent(long sent, long total)
-        {
-            Sent = sent;
-            Total = total;
-        }
+    public UploadEvent(long sent, long total)
+    {
+        Sent = sent;
+        Total = total;
     }
 }

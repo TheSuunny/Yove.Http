@@ -1,24 +1,23 @@
 using System;
 
-namespace Yove.Http.Events
+namespace Yove.HttpClient.Events;
+
+public class DownloadEvent : EventArgs
 {
-    public class DownloadEvent : EventArgs
+    public long Received { get; }
+    public long? Total { get; }
+
+    public int ProgressPercentage
     {
-        public long Received { get; }
-        public long? Total { get; }
-
-        public int ProgressPercentage
+        get
         {
-            get
-            {
-                return (int)(Received / (double)Total * 100.0);
-            }
+            return (int)(Received / (double)Total * 100.0);
         }
+    }
 
-        public DownloadEvent(long received, long? total)
-        {
-            Received = received;
-            Total = total;
-        }
+    public DownloadEvent(long received, long? total)
+    {
+        Received = received;
+        Total = total;
     }
 }

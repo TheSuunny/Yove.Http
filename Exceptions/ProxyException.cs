@@ -1,16 +1,15 @@
 using System;
 using System.Runtime.Serialization;
 
-namespace Yove.Http.Exceptions
+namespace Yove.HttpClient.Exceptions;
+
+public class HttpProxyException : Exception
 {
-    public class HttpProxyException : Exception
-    {
-        public HttpProxyException() { }
+    public HttpProxyException() { }
 
-        public HttpProxyException(string message) : base(message) { }
+    public HttpProxyException(string message) : base(message) { }
 
-        public HttpProxyException(string message, Exception inner) : base(message, inner) { }
+    public HttpProxyException(string message, Exception inner) : base(message, inner) { }
 
-        protected HttpProxyException(SerializationInfo info, StreamingContext context) : base(info, context) { }
-    }
+    protected HttpProxyException(SerializationInfo info, StreamingContext context) : base(info, context) { }
 }

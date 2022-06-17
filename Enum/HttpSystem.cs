@@ -1,10 +1,9 @@
-namespace Yove.Http
+namespace Yove.HttpClient;
+
+public enum HttpSystem
 {
-    public enum HttpSystem
-    {
-        Linux,
-        Mac,
-        Windows,
-        ChromeOS
-    }
+    Linux,
+    Mac,
+    Windows,
+    ChromeOS
 }
