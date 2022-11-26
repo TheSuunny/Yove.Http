@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 
-namespace Yove.HttpClient;
+namespace Yove.Http;
 
 public static class HttpUtils
 {

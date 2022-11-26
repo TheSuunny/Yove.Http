@@ -1,6 +1,6 @@
 using System;
 
-namespace Yove.HttpClient.Events;
+namespace Yove.Http.Events;
 
 public class DownloadEvent : EventArgs
 {

@@ -6,9 +6,9 @@ using Fody;
 
 using Newtonsoft.Json.Linq;
 
-using Yove.HttpClient.Exceptions;
+using Yove.Http.Exceptions;
 
-namespace Yove.HttpClient;
+namespace Yove.Http;
 
 [ConfigureAwait(false)]
 public class Content : IDisposable

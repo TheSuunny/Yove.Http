@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.Serialization;
 
-namespace Yove.HttpClient.Exceptions;
+namespace Yove.Http.Exceptions;
 
 public class HttpProxyException : Exception
 {

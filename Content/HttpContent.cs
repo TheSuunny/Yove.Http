@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace Yove.HttpClient;
+namespace Yove.Http;
 
 public abstract class HttpContent
 {

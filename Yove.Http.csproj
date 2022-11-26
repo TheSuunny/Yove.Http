@@ -5,8 +5,8 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <PackageId>Yove.HttpClient</PackageId>
-    <Version>1.6.1</Version>
+    <PackageId>Yove.Http</PackageId>
+    <Version>1.6.2</Version>
     <Authors>Sunny</Authors>
     <NeutralLanguage>en-US, ru-RU</NeutralLanguage>
     <Description>Http Client for .Net | Http, Socks4, Socks5 client</Description>
@@ -18,10 +18,10 @@
   </PropertyGroup>
   
   <ItemGroup>
-    <PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0"/>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1"/>
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="7.0.0"/>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2"/>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All"/>
-    <PackageReference Include="Fody" Version="6.6.3"/>
+    <PackageReference Include="Fody" Version="6.6.4"/>
     <PackageReference Include="ConfigureAwait.Fody" Version="3.3.1" PrivateAssets="All"/>
   </ItemGroup>
 </Project>

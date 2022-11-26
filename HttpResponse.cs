@@ -8,10 +8,10 @@ using System.Threading.Tasks;
 
 using Fody;
 
-using Yove.HttpClient.Exceptions;
-using Yove.HttpClient.Models;
+using Yove.Http.Exceptions;
+using Yove.Http.Models;
 
-namespace Yove.HttpClient;
+namespace Yove.Http;
 
 [ConfigureAwait(false)]
 public class HttpResponse
@@ -20,7 +20,7 @@ public class HttpResponse
     private Receiver _content { get; }
 
     public NameValueCollection Headers = new();
-    public NameValueCollection Cookie = new();
+    public NameValueCollection Cookies = new();
     public List<RedirectItem> RedirectHistory = new();
 
     public string ContentType { get; }
@@ -196,10 +196,10 @@ public class HttpResponse
 
                     if (!string.IsNullOrEmpty(cookieName))
                     {
-                        Cookie[cookieName] = cookieValue;
+                        Cookies[cookieName] = cookieValue;
 
-                        if (_request.EnableCookie && _request.Cookie != null)
-                            _request.Cookie[cookieName] = cookieValue;
+                        if (_request.EnableCookies && _request.Cookies != null)
+                            _request.Cookies[cookieName] = cookieValue;
                     }
                 }
                 else
@@ -252,8 +252,7 @@ public class HttpResponse
         if (outputStream == null && ContentLength.HasValue)
             outputStream = await ReceiveStandartBody(false);
 
-        if (outputStream == null)
-            outputStream = await ReceiveUnsizeBody(_request.CommonStream);
+        outputStream ??= await ReceiveUnsizeBody(_request.CommonStream);
 
         if (outputStream != null && Content.Stream.Length > 0)
             Content.Stream.Position = 0;

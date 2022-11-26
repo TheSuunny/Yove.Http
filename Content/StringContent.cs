@@ -1,7 +1,7 @@
 using System;
 using System.Text;
 
-namespace Yove.HttpClient;
+namespace Yove.Http;
 
 public class StringContent : ByteContent
 {

@@ -15,12 +15,12 @@ using Fody;
 
 using Newtonsoft.Json.Linq;
 
-using Yove.HttpClient.Events;
-using Yove.HttpClient.Exceptions;
-using Yove.HttpClient.Models;
-using Yove.HttpClient.Proxy;
+using Yove.Http.Events;
+using Yove.Http.Exceptions;
+using Yove.Http.Models;
+using Yove.Http.Proxy;
 
-namespace Yove.HttpClient;
+namespace Yove.Http;
 
 [ConfigureAwait(false)]
 public class HttpClient : IDisposable
@@ -29,7 +29,7 @@ public class HttpClient : IDisposable
     public NameValueCollection Headers = new();
     public NameValueCollection TempHeaders = new();
 
-    public NameValueCollection Cookie { get; set; }
+    public NameValueCollection Cookies { get; set; }
 
     public string BaseUrl { get; set; }
     public string Username { get; set; }
@@ -47,7 +47,7 @@ public class HttpClient : IDisposable
     public bool EnableAutoRedirect { get; set; } = true;
     public bool RedirectOnlyIfOtherDomain { get; set; }
     public bool EnableProtocolError { get; set; } = true;
-    public bool EnableCookie { get; set; } = true;
+    public bool EnableCookies { get; set; } = true;
     public bool EnableReconnect { get; set; } = true;
     public bool HasConnection { get; set; }
     public bool IsDisposed { get; set; }
@@ -142,8 +142,8 @@ public class HttpClient : IDisposable
 
     public HttpClient()
     {
-        if (EnableCookie && Cookie == null)
-            Cookie = new NameValueCollection();
+        if (EnableCookies && Cookies == null)
+            Cookies = new NameValueCollection();
     }
 
     public HttpClient(CancellationToken token) : this()
@@ -158,8 +158,8 @@ public class HttpClient : IDisposable
     {
         BaseUrl = baseUrl;
 
-        if (EnableCookie && Cookie == null)
-            Cookie = new NameValueCollection();
+        if (EnableCookies && Cookies == null)
+            Cookies = new NameValueCollection();
     }
 
     public HttpClient(string baseUrl, CancellationToken token) : this(baseUrl)
@@ -271,8 +271,8 @@ public class HttpClient : IDisposable
             if (!url.StartsWith("https://") && !url.StartsWith("http://") && !string.IsNullOrEmpty(BaseUrl))
                 url = $"{BaseUrl.TrimEnd('/')}/{url}";
 
-            if (!EnableCookie && Cookie != null)
-                Cookie = null;
+            if (!EnableCookies && Cookies != null)
+                Cookies = null;
 
             Method = method;
             Content = body;
@@ -561,12 +561,12 @@ public class HttpClient : IDisposable
             rawHeaders["Connection"] = "close";
         }
 
-        if (Cookie?.Count > 0)
+        if (Cookies?.Count > 0)
         {
             string cookieBuilder = string.Empty;
 
-            foreach (string cookie in Cookie)
-                cookieBuilder += $"{cookie}={Cookie[cookie]}; ";
+            foreach (string cookie in Cookies)
+                cookieBuilder += $"{cookie}={Cookies[cookie]}; ";
 
             rawHeaders["Cookie"] = cookieBuilder.TrimEnd();
         }
@@ -603,8 +603,8 @@ public class HttpClient : IDisposable
         if (string.IsNullOrEmpty(source))
             throw new NullReferenceException("Value is null or empty.");
 
-        if (!EnableCookie)
-            throw new HttpRequestException("Cookie is disabled.");
+        if (!EnableCookies)
+            throw new HttpRequestException("Cookies is disabled.");
 
         if (source.Contains("Cookie:", StringComparison.OrdinalIgnoreCase))
             source = source.Replace("Cookie:", "", StringComparison.OrdinalIgnoreCase).Trim();
@@ -615,7 +615,7 @@ public class HttpClient : IDisposable
             string value = cookie.Split('=')[1]?.Trim();
 
             if (key != null && value != null)
-                Cookie[key] = value;
+                Cookies[key] = value;
         }
     }
 

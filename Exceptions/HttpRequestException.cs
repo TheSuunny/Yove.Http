@@ -1,6 +1,6 @@
 using System;
 
-namespace Yove.HttpClient.Exceptions;
+namespace Yove.Http.Exceptions;
 
 public class HttpRequestException : Exception
 {

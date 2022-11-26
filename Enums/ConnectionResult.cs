@@ -1,4 +1,4 @@
-namespace Yove.HttpClient.Proxy;
+namespace Yove.Http.Proxy;
 
 public enum ConnectionResult
 {

@@ -1,4 +1,4 @@
-namespace Yove.HttpClient;
+namespace Yove.Http;
 
 public enum HttpStatusCode
 {

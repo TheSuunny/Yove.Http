@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace Yove.HttpClient;
+namespace Yove.Http;
 
 public class MultipartContent : HttpContent, IEnumerable<HttpContent>, IDisposable
 {

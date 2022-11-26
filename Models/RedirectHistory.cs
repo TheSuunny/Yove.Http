@@ -1,4 +1,4 @@
-namespace Yove.HttpClient.Models;
+namespace Yove.Http.Models;
 
 public record RedirectItem
 {

@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace Yove.HttpClient;
+namespace Yove.Http;
 
 public class FileContent : StreamContent
 {

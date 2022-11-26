@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace Yove.HttpClient;
+namespace Yove.Http;
 
 internal class Receiver
 {

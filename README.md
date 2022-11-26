@@ -1,17 +1,17 @@
 # Yove.Http | Http Client / Http Framework
 
-[![NuGet version](https://badge.fury.io/nu/Yove.HttpClient.svg)](https://badge.fury.io/nu/Yove.HttpClient)
-[![Downloads](https://img.shields.io/nuget/dt/Yove.HttpClient.svg)](https://www.nuget.org/packages/Yove.HttpClient)
+[![NuGet version](https://badge.fury.io/nu/Yove.Http.svg)](https://badge.fury.io/nu/Yove.Http)
+[![Downloads](https://img.shields.io/nuget/dt/Yove.Http.svg)](https://www.nuget.org/packages/Yove.Http)
 [![Target](https://img.shields.io/badge/.NET%20Standard-2.0-green.svg)](https://docs.microsoft.com/ru-ru/dotnet/standard/net-standard)
 
-Nuget: https://www.nuget.org/packages/Yove.HttpClient
+Nuget: https://www.nuget.org/packages/Yove.Http
 
 ```
-Install-Package Yove.HttpClient
+Install-Package Yove.Http
 ```
 
 ```
-dotnet add package Yove.HttpClient
+dotnet add package Yove.Http
 ```
 
 ---
@@ -23,7 +23,7 @@ using(HttpClient client = new HttpClient
 {
     Authorization = $"Bearer {Token}", // Add Authorization header
     EnableAutoRedirect = false, // Disable automatic redirection if the server responded with a Location header
-    EnableCookie = false, // Disable cookie
+    EnableCookies = false, // Disable cookies
     EnableProtocolError = false, // Disable exceptions associated with server response
     EnableReconnect = false, // Disable reconnection in case of connection errors or data reading
     ReconnectDelay = 1000, // Delay in attempting a new connection
@@ -140,3 +140,9 @@ Supports both default requests and WebDAV
 | MOVE      | Move from one URI to another                                                             |
 | LOCK      | Put a lock on the object                                                                 |
 | UNLOCK    | Unlock a resource                                                                        |
+
+---
+
+### TODO
+
+- [ ] Proxy Authorization
