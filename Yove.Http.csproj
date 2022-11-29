@@ -6,7 +6,7 @@
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageId>Yove.Http</PackageId>
-    <Version>1.6.2</Version>
+    <Version>1.6.4</Version>
     <Authors>Sunny</Authors>
     <NeutralLanguage>en-US, ru-RU</NeutralLanguage>
     <Description>Http Client for .Net | Http, Socks4, Socks5 client</Description>

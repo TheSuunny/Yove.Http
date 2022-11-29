@@ -45,9 +45,20 @@ using(HttpClient client = new HttpClient
 HttpClient client = new HttpClient("Base URL")
 {
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Http),
-    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks4),
-    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks5),
+    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks4)
+    {
+        UserId = "jfdafjnasjkfkjnsa"
+    },
+    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks5)
+    {
+        Username = "admin",
+        Password = "123456"
+    },
     Proxy = new ProxyClient("195.208.172.70:8080", ProxyType.Http)
+    {
+        Username = "admin",
+        Password = "123456"
+    }
 };
 ```
 
@@ -145,4 +156,4 @@ Supports both default requests and WebDAV
 
 ### TODO
 
-- [ ] Proxy Authorization
+- [x] Proxy Authorization

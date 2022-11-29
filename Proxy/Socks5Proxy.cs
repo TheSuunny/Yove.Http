@@ -1,18 +1,19 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
-
-using Yove.Http;
-using Yove.Http.Proxy;
 
 namespace Yove.Http.Proxy;
 
 public class Socks5Proxy : ProxyClient
 {
+    public string Username { get; set; }
+    public string Password { get; set; }
+
     public Socks5Proxy() { }
-    public Socks5Proxy(string host, int port, ProxyType type) : this($"{host}:{port}", type) { }
-    public Socks5Proxy(string proxy, ProxyType type) : base(proxy, type) { }
+    public Socks5Proxy(string host, int port) : this($"{host}:{port}") { }
+    public Socks5Proxy(string proxy) : base(proxy, ProxyType.Socks5) { }
 
     private protected override async Task<ConnectionResult> SendCommand(NetworkStream networkStream, string destinationHost, int destinationPort)
     {
@@ -21,7 +22,11 @@ public class Socks5Proxy : ProxyClient
 
         auth[0] = 5;
         auth[1] = 1;
-        auth[2] = 0;
+
+        if (!string.IsNullOrEmpty(Username) && !string.IsNullOrEmpty(Password))
+            auth[2] = 0x02;
+        else
+            auth[2] = 0;
 
         networkStream.Write(auth, 0, auth.Length);
 
@@ -29,7 +34,9 @@ public class Socks5Proxy : ProxyClient
 
         networkStream.Read(response, 0, response.Length);
 
-        if (response[1] != 0x00)
+        if (response[1] == 0x02)
+            await SendAuth(networkStream);
+        else if (response[1] != 0x00)
             return ConnectionResult.InvalidProxyResponse;
 
         byte addressType = GetAddressType(destinationHost);
@@ -60,6 +67,31 @@ public class Socks5Proxy : ProxyClient
             return ConnectionResult.InvalidProxyResponse;
 
         return ConnectionResult.OK;
+    }
+
+    private async Task SendAuth(NetworkStream networkStream)
+    {
+        byte[] username = Encoding.ASCII.GetBytes(Username);
+        byte[] password = Encoding.ASCII.GetBytes(Password);
+
+        byte[] request = new byte[username.Length + password.Length + 3];
+
+        request[0] = 1;
+        request[1] = (byte)username.Length;
+        username.CopyTo(request, 2);
+        request[2 + username.Length] = (byte)password.Length;
+        password.CopyTo(request, 3 + username.Length);
+
+        networkStream.Write(request, 0, request.Length);
+
+        byte[] response = new byte[2];
+
+        await WaitStream(networkStream);
+
+        networkStream.Read(response, 0, response.Length);
+
+        if (response[1] != 0x00)
+            throw new AuthenticationException();
     }
 
     private static byte[] GetAddressBytes(byte addressType, string host)

@@ -1,18 +1,18 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading.Tasks;
-
-using Yove.Http;
-using Yove.Http.Proxy;
 
 namespace Yove.Http.Proxy;
 
 public class Socks4Proxy : ProxyClient
 {
+    public string UserId { get; set; }
+
     public Socks4Proxy() { }
-    public Socks4Proxy(string host, int port, ProxyType type) : this($"{host}:{port}", type) { }
-    public Socks4Proxy(string proxy, ProxyType type) : base(proxy, type) { }
+    public Socks4Proxy(string host, int port) : this($"{host}:{port}") { }
+    public Socks4Proxy(string proxy) : base(proxy, ProxyType.Socks4) { }
 
     private protected override async Task<ConnectionResult> SendCommand(NetworkStream networkStream, string destinationHost, int destinationPort)
     {
@@ -23,9 +23,9 @@ public class Socks4Proxy : ProxyClient
 
         byte[] address = GetIPAddressBytes(destinationHost);
         byte[] port = GetPortBytes(destinationPort);
-        byte[] userId = Array.Empty<byte>();
+        byte[] userId = string.IsNullOrEmpty(UserId) ? Array.Empty<byte>() : Encoding.ASCII.GetBytes(UserId);
 
-        byte[] request = new byte[9];
+        byte[] request = new byte[9 + userId.Length];
         byte[] response = new byte[8];
 
         request[0] = 4;
@@ -33,7 +33,7 @@ public class Socks4Proxy : ProxyClient
         address.CopyTo(request, 4);
         port.CopyTo(request, 2);
         userId.CopyTo(request, 8);
-        request[8] = 0x00;
+        request[8 + userId.Length] = 0x00;
 
         networkStream.Write(request, 0, request.Length);
 
