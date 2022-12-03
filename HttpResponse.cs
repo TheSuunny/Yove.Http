@@ -217,6 +217,8 @@ public class HttpResponse
 
     internal async Task<MemoryStream> GetBodyContent()
     {
+        _request.CancellationToken.ThrowIfCancellationRequested();
+
         if (ContentLength.HasValue && ContentLength > _request.MaxReciveBufferSize)
             throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
 

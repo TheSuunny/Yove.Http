@@ -138,6 +138,8 @@ public class HttpClient : IDisposable
         }
     }
 
+    private CancellationTokenRegistration _cancellationTokenRegistration { get; set; }
+
     #endregion
 
     public HttpClient()
@@ -252,13 +254,14 @@ public class HttpClient : IDisposable
         if (string.IsNullOrEmpty(url))
             throw new NullReferenceException("URL is null or empty.");
 
-        CancellationTokenRegistration ctr = default;
-
         if (CancellationToken != default)
         {
+            if (_cancellationTokenRegistration != default)
+                _cancellationTokenRegistration.Dispose();
+
             CancellationToken.ThrowIfCancellationRequested();
 
-            ctr = CancellationToken.Register(() =>
+            _cancellationTokenRegistration = CancellationToken.Register(() =>
             {
                 _reconnectCount = ReconnectLimit;
 
@@ -266,180 +269,173 @@ public class HttpClient : IDisposable
             });
         }
 
+        if (!url.StartsWith("https://") && !url.StartsWith("http://") && !string.IsNullOrEmpty(BaseUrl))
+            url = $"{BaseUrl.TrimEnd('/')}/{url}";
+
+        if (!EnableCookies && Cookies != null)
+            Cookies = null;
+
+        Method = method;
+        Content = body;
+
+        _receivedBytes = 0;
+        _sentBytes = 0;
+
+        TimeSpan timeResponseStart = DateTime.Now.TimeOfDay;
+
+        if (CheckKeepAlive() || Address.Host != new UriBuilder(url).Host)
+        {
+            Close();
+
+            Address = new UriBuilder(url).Uri;
+
+            try
+            {
+                Connection = await CreateConnection(Address.Host, Address.Port);
+
+                NetworkStream = Connection.GetStream();
+
+                if (Address.Scheme.StartsWith("https"))
+                {
+                    SslStream sslStream = new(NetworkStream, false, AcceptAllCertificationsCallback);
+
+                    await sslStream.AuthenticateAsClientAsync(Address.Host, null, DefaultSslProtocols, false);
+
+                    CommonStream = sslStream;
+                }
+                else
+                {
+                    CommonStream = NetworkStream;
+                }
+
+                HasConnection = true;
+
+                if (DownloadProgressChanged != null || UploadProgressChanged != null)
+                {
+                    EventStreamWrapper eventStream = new(CommonStream, Connection.SendBufferSize);
+
+                    if (UploadProgressChanged != null)
+                    {
+                        eventStream.WriteBytesCallback = (e) =>
+                        {
+                            _sentBytes += e;
+
+                            UploadProgressChanged?.Invoke(this, new UploadEvent(_sentBytes - _headerLength, Content.ContentLength));
+                        };
+                    }
+
+                    if (DownloadProgressChanged != null)
+                    {
+                        eventStream.ReadBytesCallback = (e) =>
+                        {
+                            _receivedBytes += e;
+
+                            if (_isReceivedHeader)
+                                DownloadProgressChanged?.Invoke(this, new DownloadEvent(_receivedBytes - _response.HeaderLength, _response.ContentLength));
+                        };
+                    }
+
+                    CommonStream = eventStream;
+                }
+            }
+            catch (Exception ex)
+            {
+                if (ex?.InnerException?.Message == "bad protocol version")
+                    DefaultSslProtocols = SslProtocols.Tls11;
+
+                if (_canReconnect)
+                    return await Reconnect(method, url, body);
+
+                throw new HttpRequestException($"Failed Connection to Address: {Address.AbsoluteUri}", ex);
+            }
+        }
+        else
+        {
+            Address = new UriBuilder(url).Uri;
+        }
+
         try
         {
-            if (!url.StartsWith("https://") && !url.StartsWith("http://") && !string.IsNullOrEmpty(BaseUrl))
-                url = $"{BaseUrl.TrimEnd('/')}/{url}";
+            long contentLength = 0L;
+            string contentType = null;
 
-            if (!EnableCookies && Cookies != null)
-                Cookies = null;
-
-            Method = method;
-            Content = body;
-
-            _receivedBytes = 0;
-            _sentBytes = 0;
-
-            TimeSpan timeResponseStart = DateTime.Now.TimeOfDay;
-
-            if (CheckKeepAlive() || Address.Host != new UriBuilder(url).Host)
+            if (Method != HttpMethod.GET && Content != null)
             {
-                Close();
-
-                Address = new UriBuilder(url).Uri;
-
-                try
-                {
-                    Connection = await CreateConnection(Address.Host, Address.Port);
-
-                    NetworkStream = Connection.GetStream();
-
-                    if (Address.Scheme.StartsWith("https"))
-                    {
-                        SslStream sslStream = new(NetworkStream, false, AcceptAllCertificationsCallback);
-
-                        await sslStream.AuthenticateAsClientAsync(Address.Host, null, DefaultSslProtocols, false);
-
-                        CommonStream = sslStream;
-                    }
-                    else
-                    {
-                        CommonStream = NetworkStream;
-                    }
-
-                    HasConnection = true;
-
-                    if (DownloadProgressChanged != null || UploadProgressChanged != null)
-                    {
-                        EventStreamWrapper eventStream = new(CommonStream, Connection.SendBufferSize);
-
-                        if (UploadProgressChanged != null)
-                        {
-                            eventStream.WriteBytesCallback = (e) =>
-                            {
-                                _sentBytes += e;
-
-                                UploadProgressChanged?.Invoke(this, new UploadEvent(_sentBytes - _headerLength, Content.ContentLength));
-                            };
-                        }
-
-                        if (DownloadProgressChanged != null)
-                        {
-                            eventStream.ReadBytesCallback = (e) =>
-                            {
-                                _receivedBytes += e;
-
-                                if (_isReceivedHeader)
-                                    DownloadProgressChanged?.Invoke(this, new DownloadEvent(_receivedBytes - _response.HeaderLength, _response.ContentLength));
-                            };
-                        }
-
-                        CommonStream = eventStream;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    if (ex?.InnerException?.Message == "bad protocol version")
-                        DefaultSslProtocols = SslProtocols.Tls11;
-
-                    if (_canReconnect)
-                        return await Reconnect(method, url, body);
-
-                    throw new HttpRequestException($"Failed Connection to Address: {Address.AbsoluteUri}", ex);
-                }
-            }
-            else
-            {
-                Address = new UriBuilder(url).Uri;
+                contentType = Content.ContentType;
+                contentLength = Content.ContentLength;
             }
 
-            try
-            {
-                long contentLength = 0L;
-                string contentType = null;
+            string stringHeader = $"{Method} {Address.PathAndQuery} HTTP/1.1\r\n{GenerateHeaders(Method, contentLength, contentType)}";
+            byte[] headersBytes = Encoding.ASCII.GetBytes(stringHeader);
 
-                if (Method != HttpMethod.GET && Content != null)
-                {
-                    contentType = Content.ContentType;
-                    contentLength = Content.ContentLength;
-                }
+            _headerLength = headersBytes.Length;
 
-                string stringHeader = $"{Method} {Address.PathAndQuery} HTTP/1.1\r\n{GenerateHeaders(Method, contentLength, contentType)}";
-                byte[] headersBytes = Encoding.ASCII.GetBytes(stringHeader);
+            CommonStream.Write(headersBytes, 0, headersBytes.Length);
 
-                _headerLength = headersBytes.Length;
-
-                CommonStream.Write(headersBytes, 0, headersBytes.Length);
-
-                if (Content != null && contentLength != 0)
-                    Content.Write(CommonStream);
-            }
-            catch (Exception ex)
-            {
-                if (_canReconnect)
-                    return await Reconnect(method, url, body);
-
-                throw new HttpRequestException($"Failed send data to Address: {Address.AbsoluteUri}", ex);
-            }
-
-            try
-            {
-                _isReceivedHeader = false;
-
-                _response = new HttpResponse(this);
-
-                _isReceivedHeader = true;
-            }
-            catch (Exception ex)
-            {
-                if (_canReconnect)
-                    return await Reconnect(method, url, body);
-
-                throw new HttpResponseException($"Failed receive data from Address: {Address.AbsoluteUri}", ex);
-            }
-
-            _reconnectCount = 0;
-            _whenConnectionIdle = DateTime.Now;
-
-            _response.TimeResponse = (DateTime.Now - timeResponseStart).TimeOfDay;
-
-            if (EnableProtocolError)
-            {
-                if ((int)_response.StatusCode >= 400 && (int)_response.StatusCode < 500)
-                    throw new HttpResponseException($"[Client] | Status Code - {_response.StatusCode}");
-                else if ((int)_response.StatusCode >= 500)
-                    throw new HttpResponseException($"[Server] | Status Code - {_response.StatusCode}");
-            }
-
-            if (EnableAutoRedirect && _response.Location != null && _redirectCount < RedirectLimit &&
-                ((_response.RedirectAddress.Host == Address.Host && _response.RedirectAddress.Scheme != Address.Scheme) ||
-                !RedirectOnlyIfOtherDomain || (RedirectOnlyIfOtherDomain && _response.RedirectAddress.Host != Address.Host)))
-            {
-                _redirectCount++;
-
-                string location = _response.Location;
-
-                RedirectHistory.Add(new RedirectItem
-                {
-                    From = url,
-                    To = location,
-                    StatusCode = (int)_response.StatusCode,
-                    Length = _response.ContentLength,
-                    ContentType = _response.ContentType
-                });
-
-                Close();
-
-                return await Raw(HttpMethod.GET, location, null);
-            }
-
-            _redirectCount = 0;
-            RedirectHistory.Clear();
+            if (Content != null && contentLength != 0)
+                Content.Write(CommonStream);
         }
-        finally
+        catch (Exception ex)
         {
-            ctr.Dispose();
+            if (_canReconnect)
+                return await Reconnect(method, url, body);
+
+            throw new HttpRequestException($"Failed send data to Address: {Address.AbsoluteUri}", ex);
         }
+
+        try
+        {
+            _isReceivedHeader = false;
+
+            _response = new HttpResponse(this);
+
+            _isReceivedHeader = true;
+        }
+        catch (Exception ex)
+        {
+            if (_canReconnect)
+                return await Reconnect(method, url, body);
+
+            throw new HttpResponseException($"Failed receive data from Address: {Address.AbsoluteUri}", ex);
+        }
+
+        _reconnectCount = 0;
+        _whenConnectionIdle = DateTime.Now;
+
+        _response.TimeResponse = (DateTime.Now - timeResponseStart).TimeOfDay;
+
+        if (EnableProtocolError)
+        {
+            if ((int)_response.StatusCode >= 400 && (int)_response.StatusCode < 500)
+                throw new HttpResponseException($"[Client] | Status Code - {_response.StatusCode}");
+            else if ((int)_response.StatusCode >= 500)
+                throw new HttpResponseException($"[Server] | Status Code - {_response.StatusCode}");
+        }
+
+        if (EnableAutoRedirect && _response.Location != null && _redirectCount < RedirectLimit &&
+            ((_response.RedirectAddress.Host == Address.Host && _response.RedirectAddress.Scheme != Address.Scheme) ||
+            !RedirectOnlyIfOtherDomain || (RedirectOnlyIfOtherDomain && _response.RedirectAddress.Host != Address.Host)))
+        {
+            _redirectCount++;
+
+            string location = _response.Location;
+
+            RedirectHistory.Add(new RedirectItem
+            {
+                From = url,
+                To = location,
+                StatusCode = (int)_response.StatusCode,
+                Length = _response.ContentLength,
+                ContentType = _response.ContentType
+            });
+
+            Close();
+
+            return await Raw(HttpMethod.GET, location, null);
+        }
+
+        _redirectCount = 0;
+        RedirectHistory.Clear();
 
         return _response;
     }
@@ -637,17 +633,17 @@ public class HttpClient : IDisposable
 
     public void Close()
     {
-        if (!HasConnection)
-            return;
-
         Connection?.Close();
         Connection?.Dispose();
+        Connection = null;
 
         NetworkStream?.Close();
         NetworkStream?.Dispose();
+        NetworkStream = null;
 
         CommonStream?.Close();
         CommonStream?.Dispose();
+        CommonStream = null;
 
         _keepAliveRequestCount = 0;
 
@@ -670,6 +666,9 @@ public class HttpClient : IDisposable
         Connection = null;
         NetworkStream = null;
         CommonStream = null;
+
+        if (_cancellationTokenRegistration != default)
+            _cancellationTokenRegistration.Dispose();
     }
 
     public void Dispose()
