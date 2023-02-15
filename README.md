@@ -44,17 +44,17 @@ using(HttpClient client = new HttpClient
 ```csharp
 HttpClient client = new HttpClient("Base URL")
 {
-    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Http),
-    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks4)
+    Proxy = new HttpProxy("195.208.172.70", 8080),
+    Proxy = new Socks4Proxy("195.208.172.70", 8080)
     {
         UserId = "jfdafjnasjkfkjnsa"
     },
-    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks5)
+    Proxy = new Socks5Proxy("195.208.172.70", 8080)
     {
         Username = "admin",
         Password = "123456"
     },
-    Proxy = new ProxyClient("195.208.172.70:8080", ProxyType.Http)
+    Proxy = new HttpProxy("195.208.172.70:8080")
     {
         Username = "admin",
         Password = "123456"
