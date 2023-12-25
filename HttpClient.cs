@@ -320,7 +320,11 @@ public class HttpClient : IDisposable
                         {
                             _sentBytes += e;
 
-                            UploadProgressChanged?.Invoke(this, new UploadEvent(_sentBytes - _headerLength, Content.ContentLength));
+                            if (Content?.ContentLength != null)
+                            {
+                                UploadProgressChanged?.Invoke(this,
+                                    new UploadEvent(_sentBytes - _headerLength, Content.ContentLength));
+                            }
                         };
                     }
 
@@ -330,8 +334,11 @@ public class HttpClient : IDisposable
                         {
                             _receivedBytes += e;
 
-                            if (_isReceivedHeader)
-                                DownloadProgressChanged?.Invoke(this, new DownloadEvent(_receivedBytes - _response.HeaderLength, _response.ContentLength));
+                            if (_isReceivedHeader && _response?.ContentLength != null)
+                            {
+                                DownloadProgressChanged?.Invoke(this,
+                                    new DownloadEvent(_receivedBytes - _response.HeaderLength, _response.ContentLength));
+                            }
                         };
                     }
 
@@ -570,13 +577,13 @@ public class HttpClient : IDisposable
         StringBuilder headerBuilder = new();
 
         foreach (string header in rawHeaders)
-            headerBuilder.AppendFormat($"{header}: {rawHeaders[header]}\r\n");
+            headerBuilder.Append($"{header}: {rawHeaders[header]}\r\n");
 
         foreach (string header in Headers)
-            headerBuilder.AppendFormat($"{header}: {Headers[header]}\r\n");
+            headerBuilder.Append($"{header}: {Headers[header]}\r\n");
 
         foreach (string header in TempHeaders)
-            headerBuilder.AppendFormat($"{header}: {TempHeaders[header]}\r\n");
+            headerBuilder.Append($"{header}: {TempHeaders[header]}\r\n");
 
         TempHeaders.Clear();
 
