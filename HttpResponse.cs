@@ -122,9 +122,9 @@ public class HttpResponse
             StatusCode = (HttpStatusCode)Enum.Parse(typeof(HttpStatusCode), HttpUtils.Parser($"HTTP/{ProtocolVersion} ", headerSource, "\n")?.Trim());
         }
 
-        ContentType = HttpUtils.Parser("\ncontent-type: ", headerSource.ToLower(), "\n")?.Trim();
-        ContentEncoding = HttpUtils.Parser("\ncontent-encoding: ", headerSource.ToLower(), "\n")?.Trim();
-        Location = HttpUtils.Parser("\nlocation: ", headerSource.ToLower(), "\n")?.Trim();
+        ContentType = HttpUtils.Parser("\ncontent-type: ", headerSource, "\n")?.Trim();
+        ContentEncoding = HttpUtils.Parser("\ncontent-encoding: ", headerSource, "\n")?.Trim();
+        Location = HttpUtils.Parser("\nLocation: ", headerSource, "\n")?.Trim();
 
         if (Location?.StartsWith("//") == true)
             Location = $"{Address.Scheme}://{Location.TrimStart('/')}";
@@ -132,18 +132,18 @@ public class HttpResponse
             Location = $"{Address.Scheme}://{Address.Authority}/{Location.TrimStart('/')}";
 
         if (headerSource.Contains("content-length:", StringComparison.OrdinalIgnoreCase))
-            ContentLength = Convert.ToInt64(HttpUtils.Parser("\ncontent-length: ", headerSource.ToLower(), "\n")?.Trim());
+            ContentLength = Convert.ToInt64(HttpUtils.Parser("\ncontent-length: ", headerSource, "\n")?.Trim());
 
         if (headerSource.Contains("keep-alive", StringComparison.OrdinalIgnoreCase))
         {
             if (headerSource.Contains(", max=", StringComparison.OrdinalIgnoreCase))
             {
-                KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("\nkeep-alive: timeout=", headerSource.ToLower(), ",")?.Trim()) * 1000;
-                KeepAliveMax = Convert.ToInt32(HttpUtils.Parser($"\nkeep-alive: timeout={KeepAliveTimeout}, max=", headerSource.ToLower(), "\n")?.Trim());
+                KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("\nkeep-alive: timeout=", headerSource, ",")?.Trim()) * 1000;
+                KeepAliveMax = Convert.ToInt32(HttpUtils.Parser($"\nkeep-alive: timeout={KeepAliveTimeout}, max=", headerSource, "\n")?.Trim());
             }
             else
             {
-                KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("\nkeep-alive: timeout=", headerSource.ToLower(), "\n")?.Trim()) * 1000;
+                KeepAliveTimeout = Convert.ToInt32(HttpUtils.Parser("\nkeep-alive: timeout=", headerSource, "\n")?.Trim()) * 1000;
             }
         }
 

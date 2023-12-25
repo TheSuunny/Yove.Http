@@ -12,14 +12,14 @@ public static class HttpUtils
             if (removeSpace)
                 body = body.Replace("\n", "").Replace("\r\n", "").Replace(" ", "");
 
-            if (!body.Contains(start))
+            if (!body.Contains(start, StringComparison.CurrentCultureIgnoreCase))
                 return null;
 
-            int a = body.IndexOf(start, StringComparison.Ordinal) + start.Length;
+            int a = body.IndexOf(start, StringComparison.CurrentCultureIgnoreCase) + start.Length;
 
             body = body[a..];
 
-            int b = body.IndexOf(end, StringComparison.Ordinal);
+            int b = body.IndexOf(end, StringComparison.CurrentCultureIgnoreCase);
 
             return (b > 0) ? body[..b] : null;
         }
