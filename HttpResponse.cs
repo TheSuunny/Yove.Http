@@ -19,9 +19,9 @@ public class HttpResponse
     private HttpClient _request { get; }
     private Receiver _content { get; }
 
-    public NameValueCollection Headers = new();
-    public NameValueCollection Cookies = new();
-    public List<RedirectItem> RedirectHistory = new();
+    public NameValueCollection Headers = [];
+    public NameValueCollection Cookies = [];
+    public List<RedirectItem> RedirectHistory = [];
 
     public string ContentType { get; }
     public string ContentEncoding { get; }

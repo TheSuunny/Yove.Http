@@ -8,7 +8,7 @@ namespace Yove.Http;
 
 public class MultipartContent : HttpContent, IEnumerable<HttpContent>, IDisposable
 {
-    private readonly List<Element> _elements = new();
+    private readonly List<Element> _elements = [];
 
     private string _boundary { get; }
 

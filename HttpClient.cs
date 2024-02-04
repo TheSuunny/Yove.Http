@@ -26,8 +26,8 @@ namespace Yove.Http;
 public class HttpClient : IDisposable
 {
     #region Public
-    public NameValueCollection Headers = new();
-    public NameValueCollection TempHeaders = new();
+    public NameValueCollection Headers = [];
+    public NameValueCollection TempHeaders = [];
 
     public NameValueCollection Cookies { get; set; }
 
@@ -59,7 +59,7 @@ public class HttpClient : IDisposable
     public int ReconnectDelay { get; set; } = 1000;
     public int TimeOut { get; set; } = 60000;
     public int ReadWriteTimeOut { get; set; } = 60000;
-    public int MaxReciveBufferSize { get; set; } = 2147483647;
+    public long MaxReciveBufferSize { get; set; } = 3147483647;
 
     public Uri Address { get; private set; }
 
@@ -111,7 +111,7 @@ public class HttpClient : IDisposable
     internal HttpMethod Method { get; set; }
     internal HttpContent Content { get; set; }
 
-    internal List<RedirectItem> RedirectHistory = new();
+    internal List<RedirectItem> RedirectHistory = [];
 
     internal RemoteCertificateValidationCallback AcceptAllCertificationsCallback = new(AcceptAllCertifications);
 
@@ -348,7 +348,9 @@ public class HttpClient : IDisposable
             catch (Exception ex)
             {
                 if (ex?.InnerException?.Message == "bad protocol version")
+#pragma warning disable SYSLIB0039 // Type or member is obsolete
                     DefaultSslProtocols = SslProtocols.Tls11;
+#pragma warning restore SYSLIB0039 // Type or member is obsolete
 
                 if (_canReconnect)
                     return await Reconnect(method, url, body);
@@ -496,7 +498,7 @@ public class HttpClient : IDisposable
 
     private string GenerateHeaders(HttpMethod method, long contentLength = 0, string contentType = null)
     {
-        NameValueCollection rawHeaders = new();
+        NameValueCollection rawHeaders = [];
 
         if (Address.IsDefaultPort)
             rawHeaders["Host"] = Address.Host;
