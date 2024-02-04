@@ -215,49 +215,90 @@ public class HttpResponse
         Content = new Content(this);
     }
 
-    internal async Task<MemoryStream> GetBodyContent()
+    internal async IAsyncEnumerable<Memory<byte>> GetBodyContent()
     {
         _request.CancellationToken.ThrowIfCancellationRequested();
 
         if (ContentLength.HasValue && ContentLength > _request.MaxReciveBufferSize)
-            throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
-
-        if (Content.Stream.Length > 0)
         {
-            Content.Stream.Position = 0;
-
-            return Content.Stream;
+            throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
         }
-
-        MemoryStream outputStream = null;
 
         if (Headers["Content-Encoding"] != null && Headers["Content-Encoding"] != "none")
         {
             if (Headers["Transfer-Encoding"] != null)
-                outputStream = await ReceiveZipBody(true);
-
-            if (outputStream == null && ContentLength.HasValue)
-                outputStream = await ReceiveZipBody(false);
-
-            if (outputStream == null)
             {
-                using StreamWrapper streamWrapper = new(_request.CommonStream, _content);
-                using Stream decopressionStream = GetZipStream(streamWrapper);
+                await foreach (Memory<byte> stream in ReceiveZipBody(true))
+                {
+                    _request.CancellationToken.ThrowIfCancellationRequested();
 
-                outputStream = await ReceiveUnsizeBody(decopressionStream);
+                    yield return stream;
+                }
+
+                if (Content.Stream.Length > 0)
+                    yield break;
             }
+            else if (!ContentLength.HasValue)
+            {
+                await foreach (Memory<byte> stream in ReceiveZipBody(false))
+                {
+                    _request.CancellationToken.ThrowIfCancellationRequested();
+
+                    yield return stream;
+                }
+
+                if (Content.Stream.Length > 0)
+                    yield break;
+            }
+
+            using StreamWrapper streamWrapper = new(_request.CommonStream, _content);
+            using Stream decopressionStream = GetZipStream(streamWrapper);
+
+            await foreach (Memory<byte> stream in ReceiveUnsizeBody(decopressionStream))
+            {
+                _request.CancellationToken.ThrowIfCancellationRequested();
+
+                yield return stream;
+            }
+
+            if (Content.Stream.Length > 0)
+                yield break;
         }
 
-        if (outputStream == null && Headers["Transfer-Encoding"] != null)
-            outputStream = await ReceiveStandartBody(true);
+        if (Headers["Transfer-Encoding"] != null)
+        {
+            await foreach (Memory<byte> stream in ReceiveStandartBody(true))
+            {
+                _request.CancellationToken.ThrowIfCancellationRequested();
 
-        if (outputStream == null && ContentLength.HasValue)
-            outputStream = await ReceiveStandartBody(false);
+                yield return stream;
+            }
 
-        outputStream ??= await ReceiveUnsizeBody(_request.CommonStream);
+            if (Content.Stream.Length > 0)
+                yield break;
+        }
+        else if (ContentLength.HasValue)
+        {
+            await foreach (Memory<byte> stream in ReceiveStandartBody(false))
+            {
+                _request.CancellationToken.ThrowIfCancellationRequested();
 
-        if (outputStream != null && Content.Stream.Length > 0)
-            Content.Stream.Position = 0;
+                yield return stream;
+            }
+
+            if (Content.Stream.Length > 0)
+                yield break;
+        }
+
+        await foreach (Memory<byte> stream in ReceiveUnsizeBody(_request.CommonStream))
+        {
+            _request.CancellationToken.ThrowIfCancellationRequested();
+
+            yield return stream;
+        }
+
+        if (Content.Stream.Length > 0)
+            yield break;
 
         if (!ContentLength.HasValue || ContentLength == 0 || Method == HttpMethod.HEAD ||
             StatusCode == HttpStatusCode.Continue || StatusCode == HttpStatusCode.NoContent ||
@@ -265,8 +306,6 @@ public class HttpResponse
         {
             IsEmpytyBody = true;
         }
-
-        return outputStream;
     }
 
     private Stream GetZipStream(Stream inputStream)
@@ -280,88 +319,92 @@ public class HttpResponse
         };
     }
 
-    private async Task<MemoryStream> ReceiveZipBody(bool chunked)
+    private async IAsyncEnumerable<Memory<byte>> ReceiveZipBody(bool chunked)
     {
-        using (StreamWrapper streamWrapper = new(_request.CommonStream, _content))
+        using StreamWrapper streamWrapper = new(_request.CommonStream, _content);
+        using Stream decopressionStream = GetZipStream(streamWrapper);
+
+        byte[] buffer = new byte[_request.Connection.ReceiveBufferSize];
+
+        if (chunked)
         {
-            using Stream decopressionStream = GetZipStream(streamWrapper);
+            long totalLength = 0;
 
-            byte[] buffer = new byte[_request.Connection.ReceiveBufferSize];
-
-            if (chunked)
+            while (true)
             {
+                string getLine = _content.Get(true);
+
+                if (getLine == "\r\n")
+                    continue;
+
+                getLine = getLine.Trim(' ', '\r', '\n');
+
+                if (getLine?.Length == 0)
+                    break;
+
+                int blockLength = Convert.ToInt32(getLine, 16);
+
+                if (blockLength == 0)
+                    break;
+
+                streamWrapper.TotalBytesRead = 0;
+                streamWrapper.LimitBytesRead = blockLength;
+
                 while (true)
                 {
-                    string getLine = _content.Get(true);
-
-                    if (getLine == "\r\n")
-                        continue;
-
-                    getLine = getLine.Trim(' ', '\r', '\n');
-
-                    if (getLine?.Length == 0)
-                        break;
-
-                    int blockLength = Convert.ToInt32(getLine, 16);
-
-                    if (blockLength == 0)
-                        break;
-
-                    streamWrapper.TotalBytesRead = 0;
-                    streamWrapper.LimitBytesRead = blockLength;
-
-                    while (true)
-                    {
-                        int readBytes = decopressionStream.Read(buffer, 0, buffer.Length);
-
-                        if (readBytes == 0)
-                        {
-                            if (streamWrapper.TotalBytesRead == blockLength)
-                                break;
-
-                            await WaitStream();
-                            continue;
-                        }
-
-                        await Content.Stream.WriteAsync(buffer.AsMemory(0, readBytes));
-
-                        if (Content.Stream.Length > _request.MaxReciveBufferSize)
-                            throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
-                    }
-                }
-
-                if (ContentLength == null || ContentLength.Value == 0)
-                    ContentLength = Content.Stream.Length;
-            }
-            else
-            {
-                while (true)
-                {
-                    int readBytes = await decopressionStream.ReadAsync(buffer);
+                    int readBytes = decopressionStream.Read(buffer, 0, buffer.Length);
 
                     if (readBytes == 0)
                     {
-                        if (streamWrapper.TotalBytesRead == ContentLength)
+                        if (streamWrapper.TotalBytesRead == blockLength)
                             break;
 
                         await WaitStream();
                         continue;
                     }
 
-                    await Content.Stream.WriteAsync(buffer.AsMemory(0, readBytes));
+                    totalLength += readBytes;
+
+                    if (totalLength > _request.MaxReciveBufferSize)
+                    {
+                        throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
+                    }
+
+                    yield return buffer.AsMemory(0, readBytes);
                 }
             }
-        }
 
-        return Content.Stream;
+            if (ContentLength == null || ContentLength.Value == 0)
+                ContentLength = totalLength;
+        }
+        else
+        {
+            while (true)
+            {
+                int readBytes = await decopressionStream.ReadAsync(buffer);
+
+                if (readBytes == 0)
+                {
+                    if (streamWrapper.TotalBytesRead == ContentLength)
+                        break;
+
+                    await WaitStream();
+                    continue;
+                }
+
+                yield return buffer.AsMemory(0, readBytes);
+            }
+        }
     }
 
-    private async Task<MemoryStream> ReceiveStandartBody(bool chunked)
+    private async IAsyncEnumerable<Memory<byte>> ReceiveStandartBody(bool chunked)
     {
         byte[] buffer = new byte[_request.Connection.ReceiveBufferSize];
 
         if (chunked)
         {
+            long totalLength = 0;
+
             while (true)
             {
                 string getLine = _content.Get(true);
@@ -402,16 +445,19 @@ public class HttpResponse
                     }
 
                     totalBytesRead += readBytes;
+                    totalLength += readBytes;
 
-                    await Content.Stream.WriteAsync(buffer.AsMemory(0, readBytes));
-
-                    if (Content.Stream.Length > _request.MaxReciveBufferSize)
+                    if (totalLength > _request.MaxReciveBufferSize)
+                    {
                         throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
+                    }
+
+                    yield return buffer.AsMemory(0, readBytes);
                 }
             }
 
             if (ContentLength == null || ContentLength.Value == 0)
-                ContentLength = Content.Stream.Length;
+                ContentLength = totalLength;
         }
         else
         {
@@ -432,16 +478,14 @@ public class HttpResponse
                     continue;
                 }
 
-                await Content.Stream.WriteAsync(buffer.AsMemory(0, readBytes));
-
                 totalBytesRead += readBytes;
+
+                yield return buffer.AsMemory(0, readBytes);
             }
         }
-
-        return Content.Stream;
     }
 
-    private async Task<MemoryStream> ReceiveUnsizeBody(Stream inputStream)
+    private async IAsyncEnumerable<Memory<byte>> ReceiveUnsizeBody(Stream inputStream)
     {
         int beginBytesRead = 0;
 
@@ -460,12 +504,12 @@ public class HttpResponse
                 beginBytesRead += await inputStream.ReadAsync(buffer.AsMemory(beginBytesRead, buffer.Length - beginBytesRead));
         }
 
-        await Content.Stream.WriteAsync(buffer.AsMemory(0, beginBytesRead));
-
         string html = Encoding.ASCII.GetString(buffer);
 
         if (html.Contains("<html", StringComparison.OrdinalIgnoreCase) && html.Contains("</html>", StringComparison.OrdinalIgnoreCase))
-            return Content.Stream;
+            yield return buffer.AsMemory(0, beginBytesRead);
+
+        long totalLength = 0;
 
         while (true)
         {
@@ -483,7 +527,8 @@ public class HttpResponse
 
                 if (html.Contains("</html>", StringComparison.OrdinalIgnoreCase))
                 {
-                    await Content.Stream.WriteAsync(buffer.AsMemory(0, beginBytesRead));
+                    yield return buffer.AsMemory(0, beginBytesRead);
+
                     break;
                 }
             }
@@ -492,16 +537,18 @@ public class HttpResponse
                 break;
             }
 
-            await Content.Stream.WriteAsync(buffer.AsMemory(0, readBytes));
+            totalLength += readBytes;
 
-            if (Content.Stream.Length > _request.MaxReciveBufferSize)
+            if (totalLength > _request.MaxReciveBufferSize)
+            {
                 throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
+            }
+
+            yield return buffer.AsMemory(0, readBytes);
         }
 
         if (ContentLength == null || ContentLength.Value == 0)
-            ContentLength = Content.Stream.Length;
-
-        return Content.Stream;
+            ContentLength = totalLength;
     }
 
     private async Task WaitStream()
@@ -521,43 +568,5 @@ public class HttpResponse
 
             throw new HttpResponseException($"Timeout waiting for data from Address: {_request.Address.AbsoluteUri}");
         }
-    }
-
-    public async Task<string> ToFile(string filename)
-    {
-        if (string.IsNullOrEmpty(filename))
-            throw new NullReferenceException("Filename is null or empty.");
-
-        return await ToFile(AppDomain.CurrentDomain.BaseDirectory, filename);
-    }
-
-    public async Task<string> ToFile(string localPath, string filename = null)
-    {
-        if (IsEmpytyBody)
-            throw new NullReferenceException("Content not found.");
-
-        if (string.IsNullOrEmpty(localPath))
-            throw new NullReferenceException("Path is null or empty.");
-
-        if (filename == null)
-        {
-            if (Headers["Content-Disposition"] != null)
-            {
-                filename = $"{localPath.TrimEnd('/')}/{HttpUtils.Parser("filename=\"", Headers["Content-Disposition"], "\"")}";
-            }
-            else
-            {
-                filename = Path.GetFileName(new Uri(Address.AbsoluteUri).LocalPath);
-
-                if (string.IsNullOrEmpty(filename))
-                    throw new NullReferenceException("Could not find filename.");
-            }
-        }
-
-        string outputPath = $"{localPath.TrimEnd('/')}/{filename}";
-
-        await File.WriteAllBytesAsync(outputPath, await Content.ReadAsBytes());
-
-        return outputPath;
     }
 }

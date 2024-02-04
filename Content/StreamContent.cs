@@ -13,10 +13,7 @@ public class StreamContent : HttpContent
     {
         get
         {
-            if (Content == null)
-                throw new ObjectDisposedException("Content disposed or empty.");
-
-            return Content.Length;
+            return Content == null ? throw new ObjectDisposedException("Content disposed or empty.") : Content.Length;
         }
     }
 
@@ -33,24 +30,28 @@ public class StreamContent : HttpContent
 
     public override void Write(Stream commonStream)
     {
-        if (Content == null)
-            throw new ObjectDisposedException("Content disposed or empty.");
-
-        if (commonStream == null)
-            throw new NullReferenceException("Stream is empty.");
-
-        Content.Position = 0;
-
-        byte[] buffer = new byte[BufferSize];
-
-        while (true)
+        if (Content != null)
         {
-            int readBytes = Content.Read(buffer, 0, buffer.Length);
+            if (commonStream == null)
+                throw new NullReferenceException("Stream is empty.");
 
-            if (readBytes == 0)
-                break;
+            Content.Position = 0;
 
-            commonStream.Write(buffer, 0, readBytes);
+            byte[] buffer = new byte[BufferSize];
+
+            while (true)
+            {
+                int readBytes = Content.Read(buffer, 0, buffer.Length);
+
+                if (readBytes == 0)
+                    break;
+
+                commonStream.Write(buffer, 0, readBytes);
+            }
+        }
+        else
+        {
+            throw new ObjectDisposedException("Content disposed or empty.");
         }
     }
 

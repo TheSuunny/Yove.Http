@@ -2,7 +2,6 @@
 
 [![NuGet version](https://badge.fury.io/nu/Yove.Http.svg)](https://badge.fury.io/nu/Yove.Http)
 [![Downloads](https://img.shields.io/nuget/dt/Yove.Http.svg)](https://www.nuget.org/packages/Yove.Http)
-[![Target](https://img.shields.io/badge/.NET%20Standard-2.0-green.svg)](https://docs.microsoft.com/ru-ru/dotnet/standard/net-standard)
 
 Nuget: https://www.nuget.org/packages/Yove.Http
 
@@ -28,7 +27,8 @@ using(HttpClient client = new HttpClient
     EnableReconnect = false, // Disable reconnection in case of connection errors or data reading
     ReconnectDelay = 1000, // Delay in attempting a new connection
     ReconnectLimit = 3, // Maximum number of reconnection attempts
-    UserAgent = HttpUtils.GenerateUserAgent() // Set Random User-Agent
+    UserAgent = HttpUtils.GenerateUserAgent() // Set Random User-Agent,
+    MaxReciveBufferSize = 3147483647 // Maximum size of the response body.
 })
 {
     HttpResponse postResponse = await client.Post("https://example.com/", "name=value");
@@ -36,6 +36,7 @@ using(HttpClient client = new HttpClient
     string getResponse = await client.GetString("https://example.com/");
 
     JToken getJsonResponse = await client.GetJson("https://example.com/list.json");
+    Modal getJsonResponse = await client.GetJson<Modal>("https://example.com/list.json");
 }
 ```
 
@@ -71,7 +72,7 @@ HttpClient client = new HttpClient("Base URL")
 | `await client.GetStream("http://example.com/");`                 | Makes a GET request and returns a response MemoryStream       |
 | `await client.GetString("http://example.com/");`                 | Makes a GET request and returns a response ToString           |
 | `await client.GetJson("http://example.com/");`                   | Makes a GET request and returns a response JToken [JSON]      |
-| `await client.GetToFile("http://example.com/", "Save path");`    | Makes a GET request and save file                             |
+| `await client.GetJson<T>("http://example.com/");`                | Makes a GET request and returns a response T [Object]         |
 | `await client.Post("http://example.com/", "id=0&message=test");` | Simple POST request, supports up to 5 reload                  |
 | `await client.Raw(HttpMethod.DELETE, "http://example.com/");`    | Raw method, can accept any parameters included in HttpContent |
 
@@ -125,8 +126,10 @@ string body = await response.Content.ReadAsString();
 MemoryStream stream = await response.Content.ReadAsStream();
 byte[] bytes = await response.Content.ReadAsBytes();
 JToken json = await response.Content.ReadAsJson();
+Modal json = await response.Content.ReadAsJson<Modal>();
 
-string path = await response.ToFile("Path to save", "Filename"); // If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
+string path = await response.Content.ToFile("/etc/filename.pack");
+string path = await response.Content.ToFile("Path to save", "Filename"); // If you do not specify a Filename, the client will try to find the file name, and save it, otherwise you will get an error
 ```
 
 ---
@@ -152,8 +155,6 @@ Supports both default requests and WebDAV
 | LOCK      | Put a lock on the object                                                                 |
 | UNLOCK    | Unlock a resource                                                                        |
 
----
-
 ### TODO
 
-- [x] Proxy Authorization
+- [] HtmlParser to Regex

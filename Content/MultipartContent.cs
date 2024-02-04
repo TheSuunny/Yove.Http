@@ -32,32 +32,34 @@ public class MultipartContent : HttpContent, IEnumerable<HttpContent>, IDisposab
     {
         get
         {
-            if (_elements.Count == 0)
-                throw new ObjectDisposedException("Content disposed or empty.");
-
-            long length = 0;
-
-            foreach (Element item in _elements)
+            if (_elements.Count != 0)
             {
-                length += item.Content.ContentLength;
+                long length = 0;
 
-                if (item.IsFieldFile)
+                foreach (Element item in _elements)
                 {
-                    length += 72;
-                    length += item.Name.Length;
-                    length += item.Filename.Length;
-                    length += item.Content.ContentType.Length;
-                }
-                else
-                {
-                    length += 43;
-                    length += item.Name.Length;
+                    length += item.Content.ContentLength;
+
+                    if (item.IsFieldFile)
+                    {
+                        length += 72;
+                        length += item.Name.Length;
+                        length += item.Filename.Length;
+                        length += item.Content.ContentType.Length;
+                    }
+                    else
+                    {
+                        length += 43;
+                        length += item.Name.Length;
+                    }
+
+                    length += _boundary.Length + 6;
                 }
 
-                length += _boundary.Length + 6;
+                return length += _boundary.Length + 6;
             }
 
-            return length += _boundary.Length + 6;
+            throw new ObjectDisposedException("Content disposed or empty.");
         }
     }
 
@@ -187,36 +189,40 @@ public class MultipartContent : HttpContent, IEnumerable<HttpContent>, IDisposab
 
     public override void Write(Stream commonStream)
     {
-        if (_elements.Count == 0)
-            throw new ObjectDisposedException("Content disposed or empty.");
-
-        if (commonStream == null)
-            throw new NullReferenceException("CommonStream is null.");
-
-        byte[] lineBytes = Encoding.ASCII.GetBytes("\r\n");
-        byte[] boundaryBytes = Encoding.ASCII.GetBytes($"--{_boundary}\r\n");
-
-        foreach (Element item in _elements)
+        if (_elements.Count != 0)
         {
+            if (commonStream == null)
+                throw new NullReferenceException("CommonStream is null.");
+
+            byte[] lineBytes = Encoding.ASCII.GetBytes("\r\n");
+            byte[] boundaryBytes = Encoding.ASCII.GetBytes($"--{_boundary}\r\n");
+
+            foreach (Element item in _elements)
+            {
+                commonStream.Write(boundaryBytes, 0, boundaryBytes.Length);
+
+                string field;
+
+                if (item.IsFieldFile)
+                    field = $"Content-Disposition: form-data; name=\"{item.Name}\"; filename=\"{item.Filename}\"\r\nContent-Type: {item.Content.ContentType}\r\n\r\n";
+                else
+                    field = $"Content-Disposition: form-data; name=\"{item.Name}\"\r\n\r\n";
+
+                byte[] fieldBytes = Encoding.ASCII.GetBytes(field);
+
+                commonStream.Write(fieldBytes, 0, fieldBytes.Length);
+                item.Content.Write(commonStream);
+                commonStream.Write(lineBytes, 0, lineBytes.Length);
+            }
+
+            boundaryBytes = Encoding.ASCII.GetBytes($"--{_boundary}--\r\n");
+
             commonStream.Write(boundaryBytes, 0, boundaryBytes.Length);
-
-            string field;
-
-            if (item.IsFieldFile)
-                field = $"Content-Disposition: form-data; name=\"{item.Name}\"; filename=\"{item.Filename}\"\r\nContent-Type: {item.Content.ContentType}\r\n\r\n";
-            else
-                field = $"Content-Disposition: form-data; name=\"{item.Name}\"\r\n\r\n";
-
-            byte[] fieldBytes = Encoding.ASCII.GetBytes(field);
-
-            commonStream.Write(fieldBytes, 0, fieldBytes.Length);
-            item.Content.Write(commonStream);
-            commonStream.Write(lineBytes, 0, lineBytes.Length);
         }
-
-        boundaryBytes = Encoding.ASCII.GetBytes($"--{_boundary}--\r\n");
-
-        commonStream.Write(boundaryBytes, 0, boundaryBytes.Length);
+        else
+        {
+            throw new ObjectDisposedException("Content disposed or empty.");
+        }
     }
 
     ~MultipartContent()

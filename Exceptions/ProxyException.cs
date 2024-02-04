@@ -10,6 +10,4 @@ public class HttpProxyException : Exception
     public HttpProxyException(string message) : base(message) { }
 
     public HttpProxyException(string message, Exception inner) : base(message, inner) { }
-
-    protected HttpProxyException(SerializationInfo info, StreamingContext context) : base(info, context) { }
 }

@@ -215,35 +215,35 @@ public class HttpClient : IDisposable
     {
         HttpResponse response = await Raw(HttpMethod.GET, url);
 
-        return await response.Content.ReadAsString();
+        return await response?.Content?.ReadAsString();
     }
 
     public async Task<JToken> GetJson(string url)
     {
         HttpResponse response = await Raw(HttpMethod.GET, url);
 
-        return await response.Content.ReadAsJson();
+        return await response?.Content?.ReadAsJson();
+    }
+
+    public async Task<T> GetJson<T>(string url)
+    {
+        HttpResponse response = await Raw(HttpMethod.GET, url);
+
+        return await response?.Content?.ReadAsJson<T>();
     }
 
     public async Task<byte[]> GetBytes(string url)
     {
         HttpResponse response = await Raw(HttpMethod.GET, url);
 
-        return await response.Content.ReadAsBytes();
+        return await response?.Content?.ReadAsBytes();
     }
 
-    public async Task<MemoryStream> GetStream(string url)
+    public async Task<Stream> GetStream(string url)
     {
         HttpResponse response = await Raw(HttpMethod.GET, url);
 
-        return await response.Content.ReadAsStream();
-    }
-
-    public async Task<string> GetToFile(string url, string path, string filename = null)
-    {
-        HttpResponse response = await Raw(HttpMethod.GET, url);
-
-        return await response.ToFile(path, filename);
+        return await response?.Content?.ReadAsStream();
     }
 
     public async Task<HttpResponse> Raw(HttpMethod method, string url, HttpContent body = null)
