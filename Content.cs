@@ -181,8 +181,8 @@ public class Content : IDisposable
 
         IsDisposed = true;
 
-        Stream.Close();
-        Stream.Dispose();
+        Stream?.Close();
+        Stream?.Dispose();
     }
 
     public void Dispose()
