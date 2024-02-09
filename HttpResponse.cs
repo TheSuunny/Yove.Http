@@ -235,10 +235,10 @@ public class HttpResponse
                     yield return stream;
                 }
 
-                if (Content.Stream.Length > 0)
+                if (Content?.Stream?.Length > 0)
                     yield break;
             }
-            else if (!ContentLength.HasValue)
+            else if (ContentLength.HasValue)
             {
                 await foreach (Memory<byte> stream in ReceiveZipBody(false))
                 {
@@ -247,7 +247,7 @@ public class HttpResponse
                     yield return stream;
                 }
 
-                if (Content.Stream.Length > 0)
+                if (Content?.Stream?.Length > 0)
                     yield break;
             }
 
@@ -261,7 +261,7 @@ public class HttpResponse
                 yield return stream;
             }
 
-            if (Content.Stream.Length > 0)
+            if (Content?.Stream?.Length > 0)
                 yield break;
         }
 
@@ -274,7 +274,7 @@ public class HttpResponse
                 yield return stream;
             }
 
-            if (Content.Stream.Length > 0)
+            if (Content?.Stream?.Length > 0)
                 yield break;
         }
         else if (ContentLength.HasValue)
@@ -286,7 +286,7 @@ public class HttpResponse
                 yield return stream;
             }
 
-            if (Content.Stream.Length > 0)
+            if (Content?.Stream?.Length > 0)
                 yield break;
         }
 
@@ -297,7 +297,7 @@ public class HttpResponse
             yield return stream;
         }
 
-        if (Content.Stream.Length > 0)
+        if (Content?.Stream?.Length > 0)
             yield break;
 
         if (!ContentLength.HasValue || ContentLength == 0 || Method == HttpMethod.HEAD ||
