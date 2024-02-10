@@ -59,7 +59,7 @@ public class Content : IDisposable
 
         byte[] buffer = outputStream.GetBuffer();
 
-        return _response.CharacterSet.GetString(buffer, 0, buffer.Length);
+        return _response.CharacterSet.GetString(buffer, 0, (int)outputStream.Length);
     }
 
     public async Task<JToken> ReadAsJson()

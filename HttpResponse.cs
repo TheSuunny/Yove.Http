@@ -238,7 +238,8 @@ public class HttpResponse
                 if (Content?.Stream?.Length > 0)
                     yield break;
             }
-            else if (ContentLength.HasValue)
+
+            if (ContentLength.HasValue)
             {
                 await foreach (Memory<byte> stream in ReceiveZipBody(false))
                 {
@@ -277,7 +278,8 @@ public class HttpResponse
             if (Content?.Stream?.Length > 0)
                 yield break;
         }
-        else if (ContentLength.HasValue)
+
+        if (ContentLength.HasValue)
         {
             await foreach (Memory<byte> stream in ReceiveStandartBody(false))
             {
