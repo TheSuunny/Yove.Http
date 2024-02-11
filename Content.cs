@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -117,6 +118,15 @@ public class Content : IDisposable
         Stream.Seek(0, SeekOrigin.Begin);
 
         return Stream;
+    }
+
+    public async IAsyncEnumerable<Memory<byte>> ReadAsStreamEnumerable()
+    {
+        if (_response.IsEmpytyBody)
+            throw new HttpResponseException("Content not found.");
+
+        await foreach (Memory<byte> source in _response.GetBodyContent())
+            yield return source;
     }
 
     public async Task<string> ToFile(string filepath)
