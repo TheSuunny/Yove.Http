@@ -76,7 +76,14 @@ public class HttpResponse
     {
         get
         {
-            return Location != null ? new UriBuilder(Location).Uri : null;
+            if (Location != null)
+            {
+                return Location.StartsWith('/') ?
+                    new UriBuilder(Address.Scheme, Address.Host, Address.Port, Location).Uri :
+                    new UriBuilder(Location).Uri;
+            }
+
+            return null;
         }
     }
 
@@ -128,7 +135,7 @@ public class HttpResponse
 
         if (Location?.StartsWith("//") == true)
             Location = $"{Address.Scheme}://{Location.TrimStart('/')}";
-        else if (Location?.StartsWith("/") == true)
+        else if (Location?.StartsWith('/') == true)
             Location = $"{Address.Scheme}://{Address.Authority}/{Location.TrimStart('/')}";
 
         if (headerSource.Contains("content-length:", StringComparison.OrdinalIgnoreCase))
