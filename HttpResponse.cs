@@ -231,18 +231,22 @@ public class HttpResponse
             throw new InternalBufferOverflowException($"Cannot write more bytes to the buffer than the configured maximum buffer size: {_request.MaxReciveBufferSize}");
         }
 
+        long readLength = 0;
+
         if (Headers["Content-Encoding"] != null && Headers["Content-Encoding"] != "none")
         {
             if (Headers["Transfer-Encoding"] != null)
             {
                 await foreach (Memory<byte> stream in ReceiveZipBody(true))
                 {
+                    readLength += stream.Length;
+
                     _request.CancellationToken.ThrowIfCancellationRequested();
 
                     yield return stream;
                 }
 
-                if (Content?.Stream?.Length > 0)
+                if (readLength > 0)
                     yield break;
             }
 
@@ -250,12 +254,14 @@ public class HttpResponse
             {
                 await foreach (Memory<byte> stream in ReceiveZipBody(false))
                 {
+                    readLength += stream.Length;
+
                     _request.CancellationToken.ThrowIfCancellationRequested();
 
                     yield return stream;
                 }
 
-                if (Content?.Stream?.Length > 0)
+                if (readLength > 0)
                     yield break;
             }
 
@@ -264,12 +270,14 @@ public class HttpResponse
 
             await foreach (Memory<byte> stream in ReceiveUnsizeBody(decopressionStream))
             {
+                readLength += stream.Length;
+
                 _request.CancellationToken.ThrowIfCancellationRequested();
 
                 yield return stream;
             }
 
-            if (Content?.Stream?.Length > 0)
+            if (readLength > 0)
                 yield break;
         }
 
@@ -277,12 +285,14 @@ public class HttpResponse
         {
             await foreach (Memory<byte> stream in ReceiveStandartBody(true))
             {
+                readLength += stream.Length;
+
                 _request.CancellationToken.ThrowIfCancellationRequested();
 
                 yield return stream;
             }
 
-            if (Content?.Stream?.Length > 0)
+            if (readLength > 0)
                 yield break;
         }
 
@@ -290,23 +300,27 @@ public class HttpResponse
         {
             await foreach (Memory<byte> stream in ReceiveStandartBody(false))
             {
+                readLength += stream.Length;
+
                 _request.CancellationToken.ThrowIfCancellationRequested();
 
                 yield return stream;
             }
 
-            if (Content?.Stream?.Length > 0)
+            if (readLength > 0)
                 yield break;
         }
 
         await foreach (Memory<byte> stream in ReceiveUnsizeBody(_request.CommonStream))
         {
+            readLength += stream.Length;
+
             _request.CancellationToken.ThrowIfCancellationRequested();
 
             yield return stream;
         }
 
-        if (Content?.Stream?.Length > 0)
+        if (readLength > 0)
             yield break;
 
         if (!ContentLength.HasValue || ContentLength == 0 || Method == HttpMethod.HEAD ||

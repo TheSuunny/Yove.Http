@@ -112,7 +112,7 @@ public class Content : IDisposable
         if (Stream.Length == 0)
         {
             await foreach (Memory<byte> source in _response.GetBodyContent())
-                Stream.Write(source.ToArray(), 0, source.Length);
+                await Stream.WriteAsync(source);
         }
 
         Stream.Seek(0, SeekOrigin.Begin);
