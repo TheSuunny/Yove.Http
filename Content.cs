@@ -186,13 +186,16 @@ public class Content : IDisposable
 
     protected virtual void Dispose(bool disposing)
     {
-        if (!disposing || IsDisposed)
-            return;
+        if (!IsDisposed)
+        {
+            if (disposing)
+            {
+                Stream?.Close();
+                Stream?.Dispose();
+            }
 
-        IsDisposed = true;
-
-        Stream?.Close();
-        Stream?.Dispose();
+            IsDisposed = true;
+        }
     }
 
     public void Dispose()
@@ -200,5 +203,10 @@ public class Content : IDisposable
         Dispose(true);
 
         GC.SuppressFinalize(this);
+    }
+
+    ~Content()
+    {
+        Dispose(false);
     }
 }

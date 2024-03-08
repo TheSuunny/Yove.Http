@@ -3,10 +3,10 @@ using System.IO;
 
 namespace Yove.Http;
 
-internal class StreamWrapper : Stream
+internal class StreamWrapper(Stream stream, Receiver content) : Stream
 {
-    public Stream Stream { get; set; }
-    public Receiver Content { get; set; }
+    public Stream Stream { get; set; } = stream;
+    public Receiver Content { get; set; } = content;
 
     public int BytesRead { get; private set; }
     public int TotalBytesRead { get; set; }
@@ -64,12 +64,6 @@ internal class StreamWrapper : Stream
         }
     }
 
-    public StreamWrapper(Stream stream, Receiver content)
-    {
-        Stream = stream;
-        Content = content;
-    }
-
     public override void Flush()
     {
         Stream.Flush();
@@ -121,10 +115,10 @@ internal class StreamWrapper : Stream
     }
 }
 
-internal class EventStreamWrapper : Stream
+internal class EventStreamWrapper(Stream stream, int bufferSize) : Stream
 {
-    private Stream _stream { get; }
-    private int _bufferSize { get; }
+    private Stream _stream { get; } = stream;
+    private int _bufferSize { get; } = bufferSize;
 
     public Action<int> ReadBytesCallback { get; set; }
     public Action<int> WriteBytesCallback { get; set; }
@@ -179,12 +173,6 @@ internal class EventStreamWrapper : Stream
         {
             _stream.Position = value;
         }
-    }
-
-    public EventStreamWrapper(Stream stream, int bufferSize)
-    {
-        _stream = stream;
-        _bufferSize = bufferSize;
     }
 
     public override void Flush()

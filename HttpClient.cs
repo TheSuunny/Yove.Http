@@ -145,7 +145,7 @@ public class HttpClient : IDisposable
     public HttpClient()
     {
         if (EnableCookies && Cookies == null)
-            Cookies = new NameValueCollection();
+            Cookies = [];
     }
 
     public HttpClient(CancellationToken token) : this()
@@ -161,7 +161,7 @@ public class HttpClient : IDisposable
         BaseUrl = baseUrl;
 
         if (EnableCookies && Cookies == null)
-            Cookies = new NameValueCollection();
+            Cookies = [];
     }
 
     public HttpClient(string baseUrl, CancellationToken token) : this(baseUrl)
@@ -661,23 +661,31 @@ public class HttpClient : IDisposable
 
     protected virtual void Dispose(bool disposing)
     {
-        if (!disposing || IsDisposed)
-            return;
+        if (!IsDisposed)
+        {
+            if (disposing)
+            {
+                Content?.Dispose();
+                _response?.Content?.Dispose();
 
-        IsDisposed = true;
+                if (_cancellationTokenRegistration != default)
+                    _cancellationTokenRegistration.Dispose();
+            }
 
-        Close();
+            Close();
 
-        Content?.Dispose();
+            _response = null;
+            _proxyClient = null;
 
-        _response?.Content?.Dispose();
+            Cookies = null;
+            Headers = null;
+            TempHeaders = null;
+            RedirectHistory = null;
 
-        Connection = null;
-        NetworkStream = null;
-        CommonStream = null;
+            Content = null;
 
-        if (_cancellationTokenRegistration != default)
-            _cancellationTokenRegistration.Dispose();
+            IsDisposed = true;
+        }
     }
 
     public void Dispose()
@@ -689,6 +697,6 @@ public class HttpClient : IDisposable
 
     ~HttpClient()
     {
-        Dispose();
+        Dispose(false);
     }
 }

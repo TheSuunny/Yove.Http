@@ -1,4 +1,3 @@
-using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -23,7 +22,7 @@ public class Socks4Proxy : ProxyClient
 
         byte[] address = GetIPAddressBytes(destinationHost);
         byte[] port = GetPortBytes(destinationPort);
-        byte[] userId = string.IsNullOrEmpty(UserId) ? Array.Empty<byte>() : Encoding.ASCII.GetBytes(UserId);
+        byte[] userId = string.IsNullOrEmpty(UserId) ? [] : Encoding.ASCII.GetBytes(UserId);
 
         byte[] request = new byte[9 + userId.Length];
         byte[] response = new byte[8];

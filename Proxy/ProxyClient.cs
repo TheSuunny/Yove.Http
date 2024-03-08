@@ -136,11 +136,6 @@ public abstract class ProxyClient
 
     private protected static byte[] GetPortBytes(int port)
     {
-        byte[] bytes = new byte[2];
-
-        bytes[0] = (byte)(port / 256);
-        bytes[1] = (byte)(port % 256);
-
-        return bytes;
+        return [(byte)(port / 256), (byte)(port % 256)];
     }
 }

@@ -4,23 +4,17 @@ using System.Text;
 
 namespace Yove.Http;
 
-internal class Receiver
+internal class Receiver(int size, Stream stream)
 {
-    private byte[] _buffer { get; }
+    private byte[] _buffer { get; } = new byte[size];
     private byte[] _temporaryBuffer = new byte[1024];
-    private Stream _stream { get; }
+    private Stream _stream { get; } = stream;
     private int _length { get; set; }
     public int Position { get; set; }
 
     public bool HasData
     {
         get { return (_length - Position) != 0; }
-    }
-
-    public Receiver(int size, Stream stream)
-    {
-        _buffer = new byte[size];
-        _stream = stream;
     }
 
     public string Get(bool readLine)
