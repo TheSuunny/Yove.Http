@@ -31,7 +31,7 @@ public class Content : IDisposable
 
     #region Internal
 
-    private readonly RecyclableMemoryStreamManager _streamManager = new();
+    private RecyclableMemoryStreamManager _streamManager = new();
 
     internal RecyclableMemoryStream Stream { get; set; }
 
@@ -44,6 +44,9 @@ public class Content : IDisposable
 
     public async Task<string> ReadAsString()
     {
+        if (IsDisposed)
+            throw new ObjectDisposedException("Object disposed.");
+
         if (_response.IsEmpytyBody)
             throw new HttpResponseException("Content not found.");
         else if (_response.ContentLength.HasValue && _response.ContentLength > int.MaxValue)
@@ -104,6 +107,9 @@ public class Content : IDisposable
 
     public async Task<Stream> ReadAsStream()
     {
+        if (IsDisposed)
+            throw new ObjectDisposedException("Object disposed.");
+
         if (_response.IsEmpytyBody)
             throw new HttpResponseException("Content not found.");
 
@@ -122,6 +128,9 @@ public class Content : IDisposable
 
     public async IAsyncEnumerable<Memory<byte>> ReadAsStreamEnumerable()
     {
+        if (IsDisposed)
+            throw new ObjectDisposedException("Object disposed.");
+
         if (_response.IsEmpytyBody)
             throw new HttpResponseException("Content not found.");
 
@@ -142,6 +151,9 @@ public class Content : IDisposable
 
     public async Task<string> ToFile(string localPath, string filename = null)
     {
+        if (IsDisposed)
+            throw new ObjectDisposedException("Object disposed.");
+
         if (_response.IsEmpytyBody)
             throw new NullReferenceException("Content not found.");
 
@@ -193,6 +205,9 @@ public class Content : IDisposable
                 Stream?.Close();
                 Stream?.Dispose();
             }
+
+            _streamManager = null;
+            Stream = null;
 
             IsDisposed = true;
         }

@@ -396,6 +396,8 @@ public class HttpClient : IDisposable
         {
             _isReceivedHeader = false;
 
+            _response?.Content?.Dispose();
+
             _response = new HttpResponse(this);
 
             _isReceivedHeader = true;
