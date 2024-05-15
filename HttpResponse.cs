@@ -527,10 +527,10 @@ public class HttpResponse
                 beginBytesRead += await inputStream.ReadAsync(buffer.AsMemory(beginBytesRead, buffer.Length - beginBytesRead));
         }
 
-        string html = Encoding.ASCII.GetString(buffer);
-
-        if (html.Contains("<html", StringComparison.OrdinalIgnoreCase) && html.Contains("</html>", StringComparison.OrdinalIgnoreCase))
+        if (beginBytesRead > 0)
             yield return buffer.AsMemory(0, beginBytesRead);
+
+        string beginBody = Encoding.ASCII.GetString(buffer);
 
         long totalLength = 0;
 
@@ -538,7 +538,7 @@ public class HttpResponse
         {
             int readBytes = await inputStream.ReadAsync(buffer);
 
-            if (html.Contains("<html", StringComparison.OrdinalIgnoreCase))
+            if (beginBody.Contains("<html", StringComparison.OrdinalIgnoreCase))
             {
                 if (readBytes == 0)
                 {
@@ -546,9 +546,9 @@ public class HttpResponse
                     continue;
                 }
 
-                html = Encoding.ASCII.GetString(buffer);
+                beginBody = Encoding.ASCII.GetString(buffer);
 
-                if (html.Contains("</html>", StringComparison.OrdinalIgnoreCase))
+                if (beginBody.Contains("</html>", StringComparison.OrdinalIgnoreCase))
                 {
                     yield return buffer.AsMemory(0, beginBytesRead);
 

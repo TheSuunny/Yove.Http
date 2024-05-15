@@ -6,8 +6,8 @@
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageId>Yove.Http</PackageId>
-    <VersionPrefix>1.7.8</VersionPrefix>
-    <VersionSuffix>beta</VersionSuffix>
+    <VersionPrefix>1.8.0</VersionPrefix>
+    <!-- <VersionSuffix>beta</VersionSuffix> -->
     <Authors>Sunny</Authors>
     <NeutralLanguage>en-US, ru-RU</NeutralLanguage>
     <Description>Http Client for .Net | Http, Socks4, Socks5 client</Description>
